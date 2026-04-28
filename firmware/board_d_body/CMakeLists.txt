@@ -21,8 +21,7 @@ add_subdirectory(cmake/stm32cubemx)
 
 set(REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 set(COMMON_DIR ${REPO_ROOT}/common)
-set(BOARD_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Core/Src)
-set(BOARD_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc)
+set(BOARD_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${COMMON_DIR}/can_bsp.c
@@ -36,7 +35,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${COMMON_DIR}
-    ${BOARD_INC_DIR}
+    ${BOARD_SRC_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/Core/Inc
 )
 

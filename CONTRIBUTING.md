@@ -22,7 +22,7 @@ can-gateway-uds/
 └── CMakeLists.txt              # 통합 빌드 관리용
 ```
 
-각 보드 폴더에는 `CMakeLists.txt`, `CMakePresets.json`, `.ioc`, `Core/`, `Drivers/`, `Middlewares/`가 있어야 합니다. 보드 A/B/C의 앱 코드는 `src/`에 있고, 보드 D Body/BCM 앱 코드는 CubeMX 프로젝트 안의 `Core/Src/bcm_*`에 있습니다.
+각 보드 폴더에는 `CMakeLists.txt`, `CMakePresets.json`, `.ioc`, `Core/`, `Drivers/`, `Middlewares/`, `src/`가 있어야 합니다. 앱 전용 코드는 `src/`에 두고, `Core/`는 CubeMX 생성 코드 중심으로 유지합니다.
 
 ## 2. Windows 로컬 빌드 준비
 
@@ -220,7 +220,7 @@ main                       검증된 통합
 | `[engine-sim]` | `firmware/board_a_engine/src` |
 | `[gateway]` | `firmware/board_b_gateway/src` |
 | `[uds]` | `firmware/board_c_uds/src` |
-| `[body]` | `firmware/board_d_body/Core/Src` |
+| `[body]` | `firmware/board_d_body/src` |
 | `[cluster]` | 계기판 관련 코드 |
 | `[docs]` | 문서 |
 | `[build]` | CMake, workflow, CubeMX 설정 |

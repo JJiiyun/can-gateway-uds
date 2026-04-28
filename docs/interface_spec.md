@@ -97,7 +97,7 @@ void Cluster_Task(void *argument);
 ### ⑦ `main.c` (한결)
 
 각 보드 `main.c`는 CubeMX 초기화와 FreeRTOS 시작만 담당합니다.
-실제 앱 진입점은 보드 A/B/C의 `src/*_main.c`와 보드 D의 `Core/Src/bcm_main.c` Task 오버라이드입니다.
+실제 앱 진입점은 각 보드 `src/*_main.c` 또는 `src/bcm_main.c`의 Task 오버라이드입니다.
 
 ## 공유 자원 (Queue/Mutex)
 

@@ -48,7 +48,8 @@ jobs:
           test -d firmware/board_a_engine/src
           test -d firmware/board_b_gateway/src
           test -d firmware/board_c_uds/src
-          test -f firmware/board_d_body/Core/Src/bcm_main.c
+          test -d firmware/board_d_body/src
+          test -f firmware/board_d_body/src/bcm_main.c
 
           test ! -d Core
           test ! -d Drivers

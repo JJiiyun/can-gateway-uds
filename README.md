@@ -34,7 +34,7 @@ CAN2 (Diagnostic/Cluster, 500kbps)
 | ② 엔진 ECU 시뮬 + 페달 | 윤지 | `firmware/board_a_engine/src/engine_sim.c` | `feature/engine-sim` |
 | ③ 게이트웨이 + 이상 감지 | 지윤 | `firmware/board_b_gateway/src/gateway_main.c` | `feature/gateway` |
 | ④ UDS 진단 CLI | 은빈 | `firmware/board_c_uds/src/uds_service.c`, `firmware/board_c_uds/src/uds_server.c` | `feature/uds-server` |
-| ⑤ Body / BCM | 미정 | `firmware/board_d_body/Core/Src/bcm_main.c` | `feature/body-bcm` |
+| ⑤ Body / BCM | 미정 | `firmware/board_d_body/src/bcm_main.c` | `feature/body-bcm` |
 | ⑥ 계기판 인터페이스 | 미정 | `firmware/board_b_gateway/src/cluster_can.c` 예정 | `feature/cluster-can` |
 | ⑦ RTOS + 통합 (팀장) | 한결 | 전체 조율, `CMakeLists.txt`, GitHub Actions | `main` |
 
@@ -78,7 +78,7 @@ can-gateway-uds/
 │       ├── CMakeLists.txt
 │       ├── Core/ Drivers/ Middlewares/
 │       ├── board_d_body.ioc
-│       └── Core/Src/
+│       └── src/
 ├── tools/
 │   ├── can_monitor/
 │   └── dbc_generator/
