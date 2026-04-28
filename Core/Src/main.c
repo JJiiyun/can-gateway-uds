@@ -19,9 +19,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "adc.h"
 #include "can.h"
 #include "eth.h"
 #include "usart.h"
+#include "usb_otg.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -93,7 +95,9 @@ int main(void)
   MX_GPIO_Init();
   MX_ETH_Init();
   MX_USART3_UART_Init();
+  MX_USB_OTG_FS_PCD_Init();
   MX_CAN1_Init();
+  MX_ADC1_Init();
   MX_CAN2_Init();
   /* USER CODE BEGIN 2 */
 
@@ -172,11 +176,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-int __io_putchar(int ch) {
-    // huart2가 ST-LINK(USB)와 연결된 기본 포트입니다.
-    HAL_UART_Transmit(&huart3, (uint8_t *)&ch, 1, 0xFFFF);
-    return ch;
-}
+
 /* USER CODE END 4 */
 
 /**

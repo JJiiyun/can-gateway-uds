@@ -19,7 +19,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Set the project name
-set(CMAKE_PROJECT_NAME boongBoong)
+set(CMAKE_PROJECT_NAME stm32f429zi_cli)
 
 # Enable compile command to ease indexing with e.g. clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
@@ -42,35 +42,35 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
-target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
-    -u _printf_float
-)
+# ========================================================
+set(BOARD_ROLE "BOARD_C")
+# 
 
+# 1. 공통 소스 파일 묶기
+file(GLOB_RECURSE COMMON_SOURCES "common/*.c")
 
-# =========================================================
-# 보드 선택 스위치 ("TX" 또는 "RX"로 변경하며 사용)
-set(BOARD_ROLE "TX")
-# =========================================================
-
-file(GLOB_RECURSE SRC_FILES "MyApp/*.c")
-
-# 선택한 보드에 따라 필요 없는 파일은 빌드 목록에서 제거(Exclude)
-if(BOARD_ROLE STREQUAL "TX")
-    list(REMOVE_ITEM SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/MyApp/receiver.c")
-    message(STATUS "🚀 [Build Mode] SENDER (TX) 보드용으로 빌드")
+# 2. 보드별 소스 파일 선택
+if(BOARD_ROLE STREQUAL "TX_ENGINE")
+    file(GLOB_RECURSE BOARD_SOURCES "board_a_engine/*.c")
+    message(STATUS "[Build Mode] 보드 A (Engine) 빌드")
+elseif(BOARD_ROLE STREQUAL "GATEWAY")
+    file(GLOB_RECURSE BOARD_SOURCES "board_b_gateway/*.c")
+    message(STATUS "[Build Mode] 보드 B (Gateway) 빌드")
 else()
-    list(REMOVE_ITEM SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/MyApp/sender.c")
-    message(STATUS "📡 [Build Mode] RECEIVER (RX) 보드용으로 빌드")
+    file(GLOB_RECURSE BOARD_SOURCES "board_c_uds/*.c")
+    message(STATUS "[Build Mode] 보드 C (UDS Server) 빌드")
 endif()
 
+# 3. 소스 파일 추가
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    ${SRC_FILES}
+    ${COMMON_SOURCES}
+    ${BOARD_SOURCES}
 )
 
-# Add include paths
+# 4. 헤더 파일 경로(Include paths) 추가
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
-    MyApp
+    common
+    board_c_uds
 )
 
 # Add project symbols (macros)
