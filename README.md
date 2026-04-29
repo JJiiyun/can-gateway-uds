@@ -132,21 +132,6 @@ sequenceDiagram
 
 ---
 
-## 추가 구현해야 할 부분
-
-| 우선순위 | 작업 | 이유 |
-|---:|---|---|
-| 1 | 보드 B FreeRTOS 태스크 엔트리 확인 | CubeMX 생성 코드는 `StartTask02`를 실행하는데, 앱 코드는 `GatewayTask`로 구현되어 있으면 라우팅 태스크가 실제로 안 돌 수 있음 |
-| 1 | 보드 B 라우팅 테이블 확장 | 현재 `0x100`만 처리하므로 보드 D의 `0x390`과 Golf 6 엔진/속도/냉각수 메시지를 CAN2로 넘겨야 함 |
-| 1 | UDS CAN ID 통일 | 보드 B/A는 `0x7E0/0x7E8`, 보드 C/common은 `0x714/0x77E`가 섞여 있음. Golf 6/OBD 기준이면 `0x7E0/0x7E8`로 통일 권장 |
-| 2 | 보드 A 송신 포맷을 Golf 6 DBC로 전환 | 현재는 내부 통합용 `0x100` 한 프레임에 RPM/Speed/Coolant/IGN을 묶음. 계기판 기준은 `0x280`, `0x1A0`, `0x288` |
-| 2 | 보드 B 경고 메시지 실송신 | 현재 warning flag는 있으나 계기판용 경고 CAN 프레임 송신 로직은 별도 구현 필요 |
-| 2 | 보드 C를 CAN2 진단 버스 기준으로 배치 | Gateway와 진단 요청/응답을 주고받으려면 물리 연결과 필터가 같은 ID 기준이어야 함 |
-| 3 | CAN monitor 기반 통합 테스트 | CAN1에서 A/D 메시지 확인, CAN2에서 Gateway 포워딩 메시지 확인 |
-| 3 | 문서와 코드 ID 정리 | `common/protocol_ids.h`, 보드별 `protocol_ids.h`, README, `docs/can_db.md`를 같은 기준으로 맞춰야 함 |
-
----
-
 ## 프로젝트 CAN DB 요약
 
 ### 현재 코드 기준
@@ -176,7 +161,7 @@ sequenceDiagram
 | `0x7E0` | `ISO_MO_01_Req` | 보드 C | UDS request | ISO-TP Single Frame |
 | `0x7E8` | `ISO_MO_01_Resp` | 보드 B/타깃 | UDS response | ISO-TP Single Frame |
 
-### 보드 A 현재 `0x100` Payload
+### 보드 A `0x100` Payload
 
 | Byte | 내용 |
 |---:|---|
@@ -187,7 +172,7 @@ sequenceDiagram
 | 5 bit1-7 | Alive counter |
 | 6-7 | Reserved |
 
-### 보드 D Golf 6 `0x390 mGate_Komf_1` Payload
+### 보드 D `0x390` Payload
 
 | Signal | Bit | 입력 |
 |---|---:|---|
