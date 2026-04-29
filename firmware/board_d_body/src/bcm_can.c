@@ -4,6 +4,7 @@
  */
 
 #include "bcm_can.h"
+#include "bcm_signal.h"
 #include "can_bsp.h"
 #include "can.h"
 #include "protocol_ids.h"
@@ -66,24 +67,35 @@ int BCM_Can_Init(void)
 
 int BCM_Can_SendBodyStatus(const CAN_Msg_t *msg)
 {
-    if (msg == NULL || msg->dlc > 8U) {
+    HAL_StatusTypeDef tx_status;
+
+    if (msg == NULL ||
+        msg->id != BCM_GOLF6_CAN_ID_MGATE_KOMF_1 ||
+        msg->dlc != BCM_GOLF6_MGATE_KOMF_1_DLC) {
+        s_stats.tx_error_count++;
+        uartPrintf(0, "[BCM] TX REJECT id=0x%03lX dlc=%u err=%lu\r\n",
+                   msg != NULL ? (unsigned long)msg->id : 0UL,
+                   msg != NULL ? (unsigned int)msg->dlc : 0U,
+                   (unsigned long)s_stats.tx_error_count);
         return -1;
     }
 
-    if (CAN_BSP_Send(msg->id, (uint8_t *)msg->data, msg->dlc) != HAL_OK) {
+    tx_status = CAN_BSP_SendTo(&hcan1, msg->id, (uint8_t *)msg->data, msg->dlc);
+    if (tx_status != HAL_OK) {
         s_stats.tx_error_count++;
-        uartPrintf(0, "[BCM] TX FAIL id=0x%03lX tx=%lu err=%lu hal=0x%08lX\r\n",
+        uartPrintf(0, "[BCM] CAN1 TX FAIL id=0x%03lX tx=%lu err=%lu st=%d hal=0x%08lX\r\n",
                    (unsigned long)msg->id,
                    (unsigned long)s_stats.tx_count,
                    (unsigned long)s_stats.tx_error_count,
+                   (int)tx_status,
                    (unsigned long)HAL_CAN_GetError(&hcan1));
         return -1;
     }
 
     s_stats.tx_count++;
-    if ((s_stats.tx_count % 10U) == 0U) {
+    if (s_stats.tx_count == 1U || (s_stats.tx_count % 10U) == 0U) {
         uartPrintf(0,
-                   "[BCM] TX REQ id=0x%03lX tx=%lu data=%02X %02X %02X %02X %02X %02X %02X %02X hal=0x%08lX\r\n",
+                   "[BCM] CAN1 TX OK id=0x%03lX tx=%lu data=%02X %02X %02X %02X %02X %02X %02X %02X hal=0x%08lX\r\n",
                    (unsigned long)msg->id,
                    (unsigned long)s_stats.tx_count,
                    msg->data[0], msg->data[1], msg->data[2], msg->data[3],

@@ -6,9 +6,6 @@
 #include "bcm_signal.h"
 #include <string.h>
 
-#define GOLF6_CAN_ID_MGATE_KOMF_1       0x390U
-#define GOLF6_MGATE_KOMF_1_DLC          8U
-
 #define GOLF6_GK1_STA_TUERKONT_BIT      4U
 #define GOLF6_GK1_SLEEP_ACKN_BIT        7U
 #define GOLF6_GK1_FA_TUERKONT_BIT       16U
@@ -41,8 +38,8 @@ void BCM_Signal_BuildBodyStatus(const BcmSignal_BodyStatus_t *status, CAN_Msg_t 
     }
 
     memset(out_msg, 0, sizeof(*out_msg));
-    out_msg->id = GOLF6_CAN_ID_MGATE_KOMF_1;
-    out_msg->dlc = GOLF6_MGATE_KOMF_1_DLC;
+    out_msg->id = BCM_GOLF6_CAN_ID_MGATE_KOMF_1;
+    out_msg->dlc = BCM_GOLF6_MGATE_KOMF_1_DLC;
 
     any_door_open = status->input.door_fl ||
                     status->input.door_fr ||
