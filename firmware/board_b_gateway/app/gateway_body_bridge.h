@@ -5,5 +5,6 @@
 
 void GatewayBodyBridge_OnRx(const CAN_RxMessage_t *rx_msg);
 void GatewayBodyBridge_Task10ms(void);
+uint8_t GatewayBodyBridge_HasRecentStatus(void);
 
 #endif
