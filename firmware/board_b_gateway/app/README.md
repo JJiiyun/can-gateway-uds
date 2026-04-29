@@ -1,13 +1,15 @@
-# Gateway Cluster Bridge 설명서
+# Gateway Bridge 설명서
 
-이 문서는 Board B Gateway의 계기판 송신 기능을 설명합니다.
+이 문서는 Board B Gateway의 `app/` 브리지 구조를 설명합니다.
 
-기존 `gateway_tasks.c`는 전체 CAN gateway task 역할을 유지하고, `gateway_cluster_bridge.c`는 계기판 변환만 담당합니다.
+기존 `gateway_tasks.c`는 전체 CAN gateway task 역할을 유지하고, 보드별 bridge 파일이 각 입력 프로토콜을 계기판/차량 CAN 메시지로 변환합니다.
 
 현재 구현 파일:
 
-- `gateway_cluster_bridge.c`
-- `gateway_cluster_bridge.h`
+- `gateway_engine_bridge.c`
+- `gateway_engine_bridge.h`
+- `gateway_body_bridge.c`
+- `gateway_body_bridge.h`
 
 ## 전체 역할
 
@@ -22,7 +24,7 @@ Board A
   CAN1 0x100, protocol_ids.h 포맷
         |
         v
-Board B Gateway app/gateway_cluster_bridge.c
+Board B Gateway app/gateway_engine_bridge.c
   rpm, speed, ignition 상태 해석
         |
         v
@@ -41,16 +43,56 @@ GatewayTask_Handle = osThreadNew(GatewayTask, NULL, &GatewayTask__attributes);
 
 `GatewayTask()` 자체는 기존 `app/gateway_tasks.c`에 있습니다.
 
-그래서 `gateway_cluster_bridge.c`는 task를 새로 만들거나 override하지 않고, 기존 task에서 호출되는 보조 모듈로 동작합니다.
+그래서 bridge 파일들은 task를 새로 만들거나 override하지 않고, 기존 task에서 호출되는 보조 모듈로 동작합니다.
 
 연결 지점은 두 곳입니다.
 
 | 위치 | 호출 함수 | 의미 |
 |---|---|---|
-| `GatewayTask()` | `GatewayClusterBridge_OnRx(&rxMsg)` | Board A `0x100` 수신값을 계기판용 최신 상태로 저장 |
-| `ClusterTask()` | `GatewayClusterBridge_Task10ms()` | 저장된 최신 상태를 CAN2 `0x280/0x1A0`로 주기 송신 |
+| `GatewayTask()` | `GatewayEngineBridge_OnRx(&rxMsg)` | Engine Board `0x100` 수신값을 계기판용 최신 상태로 저장 |
+| `GatewayTask()` | `GatewayBodyBridge_OnRx(&rxMsg)` | Body Board 메시지 수신값을 처리할 예정 |
+| `ClusterTask()` | `GatewayEngineBridge_Task10ms()` | 저장된 engine 상태를 CAN2 `0x280/0x1A0`로 주기 송신 |
+| `ClusterTask()` | `GatewayBodyBridge_Task10ms()` | Body 상태/keep-alive CAN2 주기 송신 예정 |
 
 이 구조 덕분에 CAN 초기화, queue 처리, logger 등 기존 gateway 동작은 그대로 유지됩니다.
+
+## 파일별 책임
+
+### `gateway_tasks.c`
+
+전체 gateway task의 허브입니다.
+
+- CAN BSP 초기화
+- CAN RX queue 수신
+- 기존 CAN1 to CAN2 포워딩 및 warning 상태 처리
+- Engine/Body bridge에 `rxMsg` 전달
+- 10ms 주기로 Engine/Body bridge task tick 호출
+
+### `gateway_engine_bridge.c`
+
+Engine Board 프로토콜을 VW 계기판용 CAN2 메시지로 변환합니다.
+
+현재 처리 대상:
+
+| 입력 | 출력 |
+|---|---|
+| CAN1 `0x100` RPM | CAN2 `0x280 Motor_1` |
+| CAN1 `0x100` Speed | CAN2 `0x1A0 Bremse_1` |
+| CAN1 `0x100` IGN/status | timeout 및 0 처리 기준 |
+
+### `gateway_body_bridge.c`
+
+Body Board 프로토콜을 처리하기 위한 분리 파일입니다.
+
+현재는 Body Board의 CAN ID와 payload layout이 확정되지 않았기 때문에 placeholder만 있습니다.
+
+추후 이 파일에 들어갈 가능성이 높은 항목:
+
+- turn signal
+- door open/close
+- lamp/high beam/fog
+- warning lamp
+- VW body status frame, 예: `0x470`
 
 ## Board A 입력 메시지
 
@@ -273,3 +315,50 @@ CAN analyzer 또는 candump에서 아래를 확인합니다.
 | `0x1A0` byte2-3 | Speed 값 변화에 따라 변경 |
 | `0x1A0` byte7 하위 4비트 | `0~15` 반복 증가 |
 | Board A timeout | 1초 뒤 rpm/speed 0 송신 |
+
+## UART CAN 로그 CLI
+
+USART3 UART 모니터에서 CAN 통신 로그를 확인할 수 있습니다.
+
+기본 설정:
+
+```text
+115200 baud, 8N1
+```
+
+부팅 후 아래 문구가 보이면 CLI가 준비된 상태입니다.
+
+```text
+[GW] UART CLI ready. type 'help', 'log off', or 'canlog stat'
+CLI >
+```
+
+사용 가능한 CAN 로그 명령:
+
+| 명령 | 의미 |
+|---|---|
+| `canlog stat` | 현재 로그 설정과 CAN RX/TX 카운터 출력 |
+| `canlog on` | 실시간 CAN RX/TX 로그 출력 시작 |
+| `canlog off` | 실시간 CAN RX/TX 로그 출력 중지 |
+| `canlog id 100` | `0x100` ID만 출력 |
+| `canlog id 280` | `0x280` ID만 출력 |
+| `canlog id 1A0` | `0x1A0` ID만 출력 |
+| `canlog all` | ID 필터 해제 |
+| `canlog clear` | CAN 로그 카운터 초기화 |
+| `log off` | 1초마다 나오는 `[GW] RX1=...` 상태 로그 중지 |
+| `log on` | 1초 상태 로그 재시작 |
+| `log stat` | 1초 상태 로그 on/off 확인 |
+
+로그 예시:
+
+```text
+[RX1] id=0x100 dlc=8 data=DC 05 64 00 5A 03 00 00
+[TX2] id=0x280 dlc=8 data=00 00 70 17 00 00 00 00 st=0
+[TX2] id=0x1A0 dlc=8 data=08 00 20 4E 00 00 00 03 st=0
+```
+
+주의:
+
+`canlog off`는 CAN 프레임 로그만 끕니다. 1초마다 나오는 `[GW] RX1=...` 상태 로그까지 끄려면 `log off`를 사용합니다.
+
+`canlog on`은 계기판 주기 송신까지 모두 출력하므로 UART가 빠르게 흘러갑니다. 특정 메시지만 보고 싶으면 `canlog id 100`, `canlog id 280`, `canlog id 1A0`처럼 필터를 먼저 걸고 켜는 쪽이 보기 편합니다.

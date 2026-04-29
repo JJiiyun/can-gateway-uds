@@ -1,4 +1,6 @@
-#include "gateway_cluster_bridge.h"
+#include "gateway_engine_bridge.h"
+
+#include "can_cli_monitor.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -9,7 +11,7 @@ extern CAN_HandleTypeDef hcan2;
 #define CLUSTER_CAN_ID_BREMSE_1       0x1A0U
 
 #define CLUSTER_MOTOR_1_PERIOD_MS     50U
-#define CLUSTER_BREMSE_1_PERIOD_MS    100U
+#define CLUSTER_BREMSE_1_PERIOD_MS    500U
 #define CLUSTER_INPUT_TIMEOUT_MS      1000U
 
 #define CLUSTER_MOTOR_1_RPM_START     16U
@@ -117,7 +119,9 @@ static void send_motor_1(uint32_t now)
     uint8_t data[8];
 
     encode_motor_1(data, get_active_rpm(now));
-    (void)CAN_BSP_SendTo(&hcan2, CLUSTER_CAN_ID_MOTOR_1, data, 8U);
+    HAL_StatusTypeDef status =
+        CAN_BSP_SendTo(&hcan2, CLUSTER_CAN_ID_MOTOR_1, data, 8U);
+    CanCliMonitor_LogTx(2U, CLUSTER_CAN_ID_MOTOR_1, data, 8U, status);
 }
 
 static void send_bremse_1(uint32_t now)
@@ -125,10 +129,12 @@ static void send_bremse_1(uint32_t now)
     uint8_t data[8];
 
     encode_bremse_1(data, get_active_speed(now));
-    (void)CAN_BSP_SendTo(&hcan2, CLUSTER_CAN_ID_BREMSE_1, data, 8U);
+    HAL_StatusTypeDef status =
+        CAN_BSP_SendTo(&hcan2, CLUSTER_CAN_ID_BREMSE_1, data, 8U);
+    CanCliMonitor_LogTx(2U, CLUSTER_CAN_ID_BREMSE_1, data, 8U, status);
 }
 
-void GatewayClusterBridge_OnRx(const CAN_RxMessage_t *rx_msg)
+void GatewayEngineBridge_OnRx(const CAN_RxMessage_t *rx_msg)
 {
     if (rx_msg == NULL) {
         return;
@@ -141,7 +147,7 @@ void GatewayClusterBridge_OnRx(const CAN_RxMessage_t *rx_msg)
     }
 }
 
-void GatewayClusterBridge_Task10ms(void)
+void GatewayEngineBridge_Task10ms(void)
 {
     static uint32_t next_motor_1_tick = 0U;
     static uint32_t next_bremse_1_tick = 0U;
