@@ -7,12 +7,12 @@
 #include "adc_driver.h"
 #include "can_bsp.h"
 #include "engine_can.h"
+#include "protocol_ids.h"
 
 typedef enum
 {
     ENGINE_MODE_ADC = 0,
-    ENGINE_MODE_UART,
-    ENGINE_MODE_RAW
+    ENGINE_MODE_UART
 } EngineMode_t;
 
 typedef struct
@@ -30,6 +30,7 @@ typedef struct
 } EngineSimStatus_t;
 
 void EngineSim_Init(void);
+void EngineSim_Reset(void);
 void EngineSim_Task(void* argument);
 
 void EngineSim_SetMode(EngineMode_t mode);
@@ -39,5 +40,13 @@ void EngineSim_SetBrake(uint8_t brake);
 void EngineSim_GetStatus(EngineSimStatus_t* status);
 
 const char* EngineSim_GetModeString(EngineMode_t mode);
+
+extern volatile uint8_t live_dbg_mode;
+extern volatile uint8_t live_dbg_throttle;
+extern volatile uint8_t live_dbg_brake;
+extern volatile uint16_t live_dbg_rpm;
+extern volatile uint16_t live_dbg_speed;
+extern volatile uint8_t live_dbg_coolant;
+extern volatile uint32_t live_dbg_tx_count;
 
 #endif

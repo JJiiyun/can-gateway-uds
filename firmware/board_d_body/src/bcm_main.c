@@ -13,10 +13,10 @@
 /*
  * Stage switch:
  *   0 = standalone bench mode, send 0x470 every 100 ms immediately.
- *   1 = integration mode, send 0x470 only after Engine ECU 0x300 IGN ON.
+ *   1 = integration mode, send 0x470 only after an IGN-on CAN frame is received.
  */
 #ifndef BCM_BODY_WAIT_FOR_IGN
-#define BCM_BODY_WAIT_FOR_IGN 0
+#define BCM_BODY_WAIT_FOR_IGN 1
 #endif
 
 #ifndef PERIOD_TURN_BLINK_MS
@@ -25,6 +25,12 @@
 
 #ifndef PERIOD_BODY_STATUS_MS
 #define PERIOD_BODY_STATUS_MS 100U
+#endif
+
+#if defined(__GNUC__)
+#define BCM_NOINLINE __attribute__((noinline))
+#else
+#define BCM_NOINLINE
 #endif
 
 static volatile uint8_t s_initialized;
@@ -95,6 +101,9 @@ void BCM_Body_Init(void)
         return;
     }
     (void)BCM_Can_Init();
+    (void)BCM_Body_IsIgnOn();
+    (void)BCM_Body_GetTxCount();
+    (void)BCM_Body_GetRxCount();
     s_initialized = 1U;
 
     uartPrintf(0, "[BCM] Body module ready, wait_for_ign=%u\r\n",
@@ -151,7 +160,7 @@ void BCM_Body_OnCanRx(const CAN_Msg_t *msg)
     BCM_Can_OnRx(msg);
 }
 
-uint8_t BCM_Body_IsIgnOn(void)
+BCM_NOINLINE uint8_t BCM_Body_IsIgnOn(void)
 {
     return BCM_Can_IsIgnOn();
 }
@@ -198,7 +207,7 @@ uint8_t BCM_Body_GetDoorStatus(void)
     return door;
 }
 
-uint32_t BCM_Body_GetTxCount(void)
+BCM_NOINLINE uint32_t BCM_Body_GetTxCount(void)
 {
     BcmCan_Stats_t stats;
 
@@ -206,7 +215,7 @@ uint32_t BCM_Body_GetTxCount(void)
     return stats.tx_count;
 }
 
-uint32_t BCM_Body_GetRxCount(void)
+BCM_NOINLINE uint32_t BCM_Body_GetRxCount(void)
 {
     BcmCan_Stats_t stats;
 

@@ -39,6 +39,12 @@ void StartDefaultTask(void *argument)
                     Gateway_ForwardToCan2(&rxMsg);
                     uartPrintf(0, "[Route] RPM CAN1 -> CAN2 | %d rpm\r\n", rpm);
                 }
+                else if (rxMsg.id == CAN_ID_ENGINE_DATA)
+                {
+                    Gateway_ForwardToCan2(&rxMsg);
+                    uartPrintf(0, "[Route] EngineData CAN1 -> CAN2 | IGN=%u\r\n",
+                               (unsigned)VW300_GET_IGN_ON(rxMsg.data));
+                }
                 else if (rxMsg.id == CAN_ID_ENGINE_SPEED ||
                          rxMsg.id == CAN_ID_ENGINE_COOLANT ||
                          rxMsg.id == CAN_ID_ENGINE_KEEPALIVE ||

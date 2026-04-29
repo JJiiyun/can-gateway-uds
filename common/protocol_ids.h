@@ -3,14 +3,9 @@
 
 #include "signal_db.h"
 
-#define CAN_ID_ENGINE_RPM           SIGNAL_DB_CAN_ID_MOTOR_1
-#define CAN_ID_ENGINE_SPEED         SIGNAL_DB_CAN_ID_BREMSE_1
-#define CAN_ID_ENGINE_COOLANT       SIGNAL_DB_CAN_ID_MOTOR_2
-#define CAN_ID_ENGINE_KEEPALIVE     0x300u
-#define CAN_ID_ENGINE_DATA          CAN_ID_ENGINE_RPM
+#define CAN_ID_ENGINE_DATA          0x100u
 #define CAN_ID_DASHBOARD_CTRL       0x200u
 #define CAN_ID_WARNING              0x480u
-#define CAN_ID_IGN_STATUS           CAN_ID_ENGINE_KEEPALIVE
 #define CAN_ID_BODY_STATUS          0x470u
 
 #define CAN_ID_UDS_REQ_BOARD_B      0x714u
@@ -21,7 +16,7 @@
 #define UDS_DID_SPEED               0xF40Du
 #define UDS_DID_TEMP                0xF40Eu
 
-#define CAN_DLC_IGN_STATUS          8u
+#define CAN_ENGINE_DATA_DLC         8u
 #define CAN_DLC_BODY_STATUS         8u
 
 #define BODY_BIT_TURN_LEFT          (1u << 0)
@@ -39,7 +34,20 @@ typedef struct {
     uint8_t data[8];
 } CAN_Msg_t;
 
-#define VW300_GET_IGN_ON(data_)      (((data_)[0] & 0x01u) != 0u)
+#define CAN_ENGINE_DATA_RPM_IDX          0u
+#define CAN_ENGINE_DATA_SPEED_IDX        2u
+#define CAN_ENGINE_DATA_COOLANT_IDX      4u
+#define CAN_ENGINE_DATA_STATUS_IDX       5u
+#define CAN_ENGINE_DATA_RESERVED0_IDX    6u
+#define CAN_ENGINE_DATA_RESERVED1_IDX    7u
+
+#define CAN_ENGINE_STATUS_IGN_MASK       0x01u
+#define CAN_ENGINE_STATUS_ALIVE_SHIFT    1u
+#define CAN_ENGINE_STATUS_ALIVE_MASK     0xFEu
+
+#define CAN_ID_IGN_STATUS               CAN_ID_ENGINE_DATA
+
+#define VW300_GET_IGN_ON(data_)      (((data_)[CAN_ENGINE_DATA_STATUS_IDX] & CAN_ENGINE_STATUS_IGN_MASK) != 0u)
 
 #define VW470_SET_BIT(data_, bit_, on_) \
     do { \

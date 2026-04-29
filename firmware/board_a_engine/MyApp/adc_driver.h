@@ -5,5 +5,6 @@
 #include <stdint.h>
 
 uint16_t ADC_ReadThrottle(void);
+uint16_t ADC_ReadBrake(void);
 
 #endif

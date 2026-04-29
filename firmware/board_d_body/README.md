@@ -73,6 +73,8 @@ cmake --preset Debug -DBCM_BODY_WAIT_FOR_IGN=1
 cmake --build --preset Debug
 ```
 
+기본값은 `BCM_BODY_WAIT_FOR_IGN=1`입니다. Board D는 Board A가 송신하는 `0x100` EngineData 프레임의 `byte5 bit0`를 확인합니다.
+
 ## CAN 테스트
 
 1. Board A engine 쪽에서 `0x300` 프레임의 byte0 bit0를 1로 보내면 Board D가 IGN ON으로 인식합니다.

@@ -25,7 +25,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-// #include "engine_sim.h"
+#include "engine_sim.h"
+#include "ap.h"
 
 /* USER CODE END Includes */
 
@@ -55,10 +56,10 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for engineSimTask_ */
-osThreadId_t engineSimTask_Handle;
-const osThreadAttr_t engineSimTask__attributes = {
-  .name = "engineSimTask_",
+/* Definitions for EngSimTask */
+osThreadId_t EngSimTaskHandle;
+const osThreadAttr_t EngSimTask_attributes = {
+  .name = "EngSimTask",
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
@@ -69,7 +70,7 @@ const osThreadAttr_t engineSimTask__attributes = {
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
-void EngineSim_Task(void *argument);
+void StartEngSimTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -103,8 +104,8 @@ void MX_FREERTOS_Init(void) {
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of engineSimTask_ */
-  engineSimTask_Handle = osThreadNew(EngineSim_Task, NULL, &engineSimTask__attributes);
+  /* creation of EngSimTask */
+  EngSimTaskHandle = osThreadNew(StartEngSimTask, NULL, &EngSimTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
 	/* add threads, ... */
@@ -134,25 +135,25 @@ __weak void StartDefaultTask(void *argument)
   /* USER CODE END StartDefaultTask */
 }
 
-/* USER CODE BEGIN Header_EngineSim_Task */
+/* USER CODE BEGIN Header_StartEngSimTask */
 /**
-* @brief Function implementing the engineSimTask_ thread.
+* @brief Function implementing the EngSimTask thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_EngineSim_Task */
-__weak void EngineSim_Task(void *argument)
+/* USER CODE END Header_StartEngSimTask */
+__weak void StartEngSimTask(void *argument)
 {
-  /* USER CODE BEGIN EngineSim_Task */
-  /* Infinite loop */
-  for(;;)
+  /* USER CODE BEGIN StartEngSimTask */
+	for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END EngineSim_Task */
+  /* USER CODE END StartEngSimTask */
 }
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 
 /* USER CODE END Application */
+

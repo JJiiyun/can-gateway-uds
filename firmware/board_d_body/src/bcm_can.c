@@ -12,13 +12,22 @@
 
 extern CAN_HandleTypeDef hcan1;
 
+/* If the engine CAN frame stops arriving, treat IGN as OFF after this delay. */
+#ifndef BCM_IGN_TIMEOUT_MS
+#define BCM_IGN_TIMEOUT_MS 500U
+#endif
+
 static volatile uint8_t s_ign_on;
+static volatile uint8_t s_ign_frame_valid;
+static volatile uint32_t s_last_ign_rx_tick;
 static volatile BcmCan_Stats_t s_stats;
 
 int BCM_Can_Init(void)
 {
     memset((void *)&s_stats, 0, sizeof(s_stats));
     s_ign_on = 0U;
+    s_ign_frame_valid = 0U;
+    s_last_ign_rx_tick = 0U;
 
     if (CAN_BSP_Init() != HAL_OK) {
         uartPrintf(0, "[BCM] CAN BSP init failed\r\n");
@@ -84,20 +93,36 @@ void BCM_Can_OnRx(const CAN_Msg_t *msg)
 
     s_stats.rx_count++;
 
-    if (msg->id != CAN_ID_IGN_STATUS || msg->dlc < CAN_DLC_IGN_STATUS) {
+    if (msg->id != CAN_ID_ENGINE_DATA || msg->dlc != CAN_ENGINE_DATA_DLC) {
         return;
     }
 
     prev_ign = s_ign_on;
     s_ign_on = VW300_GET_IGN_ON(msg->data) ? 1U : 0U;
+    s_ign_frame_valid = 1U;
+    s_last_ign_rx_tick = HAL_GetTick();
 
     if (prev_ign != s_ign_on) {
-        uartPrintf(0, "[BCM] IGN %s\r\n", s_ign_on ? "ON" : "OFF");
+        uartPrintf(0, "[BCM] IGN %s (id=0x%03lX byte5=0x%02X)\r\n",
+                   s_ign_on ? "ON" : "OFF",
+                   (unsigned long)msg->id,
+                   msg->data[CAN_ENGINE_DATA_STATUS_IDX]);
     }
 }
 
 uint8_t BCM_Can_IsIgnOn(void)
 {
+    uint32_t now;
+
+    if (!s_ign_frame_valid || !s_ign_on) {
+        return 0U;
+    }
+
+    now = HAL_GetTick();
+    if ((uint32_t)(now - s_last_ign_rx_tick) > BCM_IGN_TIMEOUT_MS) {
+        return 0U;
+    }
+
     return s_ign_on;
 }
 
