@@ -3,6 +3,7 @@
 
 #define CAN_ID_ENGINE_DATA           0x100U
 #define CAN_ID_DASHBOARD_CTRL        0x200U
+#define CAN_ID_BODY_STATUS           0x470U
 #define CAN_ID_UDS_REQ_BOARD_B       0x7E0U
 #define CAN_ID_UDS_RESP_BOARD_B      0x7E8U
 
@@ -23,6 +24,7 @@
 
 #define CAN_ID_ENGINE_DATA               0x100U
 #define CAN_ENGINE_DATA_DLC              8U
+#define CAN_DLC_BODY_STATUS              8U
 
 #define CAN_ENGINE_DATA_RPM_IDX          0U
 #define CAN_ENGINE_DATA_SPEED_IDX        2U
