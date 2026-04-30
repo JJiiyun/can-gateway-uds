@@ -16,6 +16,12 @@ concurrency:
 
 env:
   CMAKE_BUILD_TYPE: Debug
+  FIRMWARE_BOARDS: >-
+    board_a_engine
+    board_b_gateway
+    board_c_uds
+    board_d_body
+    board_e_safety
 
 jobs:
   layout:
@@ -31,33 +37,34 @@ jobs:
         run: |
           set -euo pipefail
 
+          boards=($FIRMWARE_BOARDS)
+
           test -f common/can_bsp.c
           test -f common/signal_db.h
           test -f common/protocol_ids.h
           test -f docs/VW_Passat_B6.dbc
 
-          for board in board_a_engine board_b_gateway board_c_uds board_d_body; do
+          for board in "${boards[@]}"; do
+            test -d "firmware/${board}"
             test -f "firmware/${board}/CMakeLists.txt"
             test -f "firmware/${board}/CMakePresets.json"
-            test -f "firmware/${board}/${board}.ioc"
-            test -d "firmware/${board}/Core"
-            test -d "firmware/${board}/Drivers"
-            test -d "firmware/${board}/Middlewares"
+            test -f "firmware/${board}/cmake/gcc-arm-none-eabi.cmake"
           done
 
-          test -d firmware/board_a_engine/src
-          test -d firmware/board_b_gateway/src
-          test -d firmware/board_c_uds/src
+          test -d firmware/board_a_engine/MyApp
+          test -d firmware/board_b_gateway/app
+          test -d firmware/board_c_uds/board_c_uds
           test -d firmware/board_d_body/src
+          test -d firmware/board_e_safety/src
           test -f firmware/board_d_body/src/bcm_main.c
+          test -f firmware/board_e_safety/src/adas_main.c
 
           test ! -d Core
           test ! -d Drivers
           test ! -d Middlewares
-          test ! -d board_a_engine
-          test ! -d board_b_gateway
-          test ! -d board_c_uds
-          test ! -d board_d_body
+          for board in "${boards[@]}"; do
+            test ! -d "${board}"
+          done
 
   unit-build:
     name: Unit build (${{ matrix.board }})
@@ -72,6 +79,7 @@ jobs:
           - board_b_gateway
           - board_c_uds
           - board_d_body
+          - board_e_safety
 
     steps:
       - name: Checkout
@@ -85,12 +93,14 @@ jobs:
             binutils-arm-none-eabi \
             gcc-arm-none-eabi \
             libnewlib-arm-none-eabi \
+            ninja-build \
             make
 
       - name: Show tool versions
         shell: bash
         run: |
           cmake --version
+          ninja --version
           make --version
           arm-none-eabi-gcc --version
           arm-none-eabi-g++ --version
@@ -131,6 +141,7 @@ jobs:
             binutils-arm-none-eabi \
             gcc-arm-none-eabi \
             libnewlib-arm-none-eabi \
+            ninja-build \
             make
 
       - name: Configure workspace
