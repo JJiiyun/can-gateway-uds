@@ -88,6 +88,56 @@ static void print_ascii_if_printable(const uint8_t *data, uint16_t len)
     }
 }
 
+static void print_adas_did_value(uint16_t did, const uint8_t *value, uint16_t len)
+{
+    if (value == NULL)
+    {
+        return;
+    }
+
+    switch (did)
+    {
+        case UDS_DID_ADAS_STATUS:
+            if (len >= 4u)
+            {
+                cliPrintf("[GATEWAY ADAS] flags=0x%02X risk=%u front=%ucm rear=%ucm\r\n",
+                          value[0],
+                          value[1],
+                          value[2],
+                          value[3]);
+            }
+            break;
+
+        case UDS_DID_ADAS_FRONT_DISTANCE:
+            if (len >= 2u)
+            {
+                uint16_t front = ((uint16_t)value[0] << 8) | value[1];
+                cliPrintf("[GATEWAY ADAS] front=%ucm\r\n", front);
+            }
+            break;
+
+        case UDS_DID_ADAS_REAR_DISTANCE:
+            if (len >= 2u)
+            {
+                uint16_t rear = ((uint16_t)value[0] << 8) | value[1];
+                cliPrintf("[GATEWAY ADAS] rear=%ucm\r\n", rear);
+            }
+            break;
+
+        case UDS_DID_ADAS_FAULT_BITMAP:
+            if (len >= 2u)
+            {
+                cliPrintf("[GATEWAY ADAS] active_fault=0x%02X dtc=0x%02X\r\n",
+                          value[0],
+                          value[1]);
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
 static void decode_uds_payload(const uint8_t *payload, uint16_t len)
 {
     uint16_t did;
@@ -112,8 +162,15 @@ static void decode_uds_payload(const uint8_t *payload, uint16_t len)
         if (len > 3u)
         {
             print_payload("[CLUSTER VALUE]", &payload[3], (uint16_t)(len - 3u));
+            print_adas_did_value(did, &payload[3], (uint16_t)(len - 3u));
             print_ascii_if_printable(&payload[3], (uint16_t)(len - 3u));
         }
+        return;
+    }
+
+    if (payload[0] == UDS_POS_CLEAR_DTC)
+    {
+        cliPrintf("[GATEWAY CLEAR DTC OK]\r\n");
         return;
     }
 
@@ -244,6 +301,38 @@ bool UDS_Client_ReadDID(uint16_t did)
     return false;
 }
 
+bool UDS_Client_ClearDtc(void)
+{
+    uint8_t tx[8] = {0};
+    HAL_StatusTypeDef ret;
+
+    reset_rx_state();
+
+    tx[0] = 0x04u;
+    tx[1] = UDS_SID_CLEAR_DTC;
+    tx[2] = 0xFFu;
+    tx[3] = 0xFFu;
+    tx[4] = 0xFFu;
+
+    ret = CAN_BSP_Send(g_client.req_id, tx, 8u);
+    if (ret == HAL_OK)
+    {
+        g_client.tx_count++;
+        g_client.last_tx_ms = HAL_GetTick();
+
+        cliPrintf("[GATEWAY UDS TX] ID=0x%03lX DATA=04 14 FF FF FF 00 00 00\r\n",
+                  (unsigned long)g_client.req_id);
+        cliPrintf("[WAIT RESP] ID=0x%03lX\r\n", (unsigned long)g_client.resp_id);
+        return true;
+    }
+
+    g_client.err_count++;
+    cliPrintf("[GATEWAY UDS TX FAIL] id=0x%03lX ret=%d\r\n",
+              (unsigned long)g_client.req_id,
+              (int)ret);
+    return false;
+}
+
 
 /* 팀원 코드 스타일: CAN1로 ReadDID 요청만 단순 송신 */
 void UDS_Request_ReadData(uint32_t canId, uint16_t did)
@@ -273,6 +362,33 @@ void UDS_Request_ReadData(uint32_t canId, uint16_t did)
     }
 }
 
+void UDS_Request_ClearDtc(uint32_t canId)
+{
+    uint8_t txData[8] = {0};
+    HAL_StatusTypeDef status;
+
+    txData[0] = 0x04u;
+    txData[1] = UDS_SID_CLEAR_DTC;
+    txData[2] = 0xFFu;
+    txData[3] = 0xFFu;
+    txData[4] = 0xFFu;
+
+    status = CAN_BSP_Send(canId, txData, 8u);
+    if (status == HAL_OK)
+    {
+        if ((canId & 0x7FFu) == g_client.req_id)
+        {
+            g_client.tx_count++;
+            g_client.last_tx_ms = HAL_GetTick();
+        }
+    }
+    else
+    {
+        g_client.err_count++;
+        cliPrintf("[CAN TX Error] Code: %d\r\n", (int)status);
+    }
+}
+
 static void drain_uart_rx(void)
 {
     while (uartAvailable(0) > 0u)
@@ -290,17 +406,6 @@ static void print_team_style_rx(const CAN_RxMessage_t *rxMsg)
     for (uint8_t i = 0u; i < rxMsg->dlc && i < 8u; i++)
     {
         cliPrintf("%02X ", rxMsg->data[i]);
-    }
-    cliPrintf("\r\n");
-}
-
-static void print_team_style_hit(const CAN_RxMessage_t *rxMsg)
-{
-    cliPrintf(">>> [HIT] 0x%03lX 수신 성공!\r\n", (unsigned long)g_client.resp_id);
-    cliPrintf(">>> Data: ");
-    for (uint8_t i = 0u; i < 8u; i++)
-    {
-        cliPrintf("%02X ", (i < rxMsg->dlc) ? rxMsg->data[i] : 0u);
     }
     cliPrintf("\r\n");
 }
@@ -449,6 +554,61 @@ void UDS_Client_ExecuteDiagnostic(uint16_t did, const char *label)
         // ALL 모드는 3초 타임아웃 없이 계속 (키 입력으로만 종료)
         if (did != UDS_DID_ALL)
             cliPrintf("[WAIT] 3초 경과, 재시도...\r\n\r\n");
+    }
+}
+
+void UDS_Execute_ClearDtc(void)
+{
+    CAN_RxMessage_t rxMsg;
+    bool saved_log = g_client.log_on;
+
+    osDelay(10u);
+    drain_uart_rx();
+    g_client.log_on = false;
+
+    cliPrintf("\r\n[START] clear dtc - press any key to stop\r\n");
+
+    for (;;)
+    {
+        uint32_t start_ms;
+
+        if (!UDS_Client_ClearDtc())
+        {
+            osDelay(100u);
+        }
+
+        start_ms = HAL_GetTick();
+        while ((HAL_GetTick() - start_ms) < 3000u)
+        {
+            while (CAN_BSP_Read(&rxMsg, 0u))
+            {
+                if (rxMsg.id == g_client.resp_id)
+                {
+                    print_team_style_rx(&rxMsg);
+                    UDS_Client_OnCanRx(&rxMsg);
+                    if (g_client.response_complete)
+                    {
+                        drain_uart_rx();
+                        g_client.log_on = saved_log;
+                        cliPrintf("[DONE] clear dtc response received\r\n");
+                        return;
+                    }
+                }
+            }
+
+            if (uartAvailable(0) > 0u)
+            {
+                (void)uartRead(0);
+                drain_uart_rx();
+                g_client.log_on = saved_log;
+                cliPrintf("\r\n[STOP] clear dtc stopped\r\n");
+                return;
+            }
+
+            osDelay(1u);
+        }
+
+        cliPrintf("[WAIT] 3 sec elapsed, retry clear dtc...\r\n\r\n");
     }
 }
 

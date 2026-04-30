@@ -58,16 +58,18 @@ void StartDefaultTask(void *argument);
 - **책임**: Board E `0x3A0 ADAS_Status` 수신 시 `risk_level >= 2`를 CAN2 `0x480 mMotor_5` warning bit로 변환.
 - **책임**: CAN2의 UDS request `0x714`/`0x7E0`에 대해 ADAS DID와 clear DTC 응답.
 
-### ④ `board_c_uds/uds_server` (은빈)
+### ④ `board_c_uds/uds_client` (은빈)
 
 ```c
-void UDS_Server_Init(void);
-void UDS_Server_Process(void);
 void UDS_Execute_Diagnostic(uint16_t did, const char *label);
+void UDS_Execute_ClearDtc(void);
+bool UDS_Client_ReadDID(uint16_t did);
+bool UDS_Client_ClearDtc(void);
 ```
 - **책임**: UART CLI `read vin|rpm|speed|temp|adas|front|rear|fault` → UDS SID 0x22 요청.
 - **책임**: UART CLI `clear dtc` → UDS SID 0x14 요청.
 - **책임**: `0x714` 요청 송신, `0x77E` 응답 수신.
+- **보장**: 최신 Board C 구조는 `common/` + `board_c_uds/`이며, legacy `UDSAPP/` 파일은 사용하지 않음.
 
 ### ⑤ `board_d_body/bcm`
 

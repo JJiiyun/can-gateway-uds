@@ -25,6 +25,7 @@ void UDS_Client_SetCanLog(bool on);
 bool UDS_Client_GetCanLog(void);
 
 bool UDS_Client_ReadDID(uint16_t did);
+bool UDS_Client_ClearDtc(void);
 
 /*
  * Team-style blocking diagnostic loop.
@@ -37,7 +38,9 @@ void UDS_Client_ExecuteDiagnostic(uint16_t did, const char *label);
 
 /* 팀원 코드와 비슷한 함수명으로도 호출 가능하게 만든 wrapper */
 void UDS_Execute_Diagnostic(uint16_t did, const char *label);
+void UDS_Execute_ClearDtc(void);
 void UDS_Request_ReadData(uint32_t canId, uint16_t did);
+void UDS_Request_ClearDtc(uint32_t canId);
 
 void UDS_Client_OnCanRx(const CAN_RxMessage_t *msg);
 

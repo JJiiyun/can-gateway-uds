@@ -58,7 +58,7 @@ elseif(BOARD_ROLE STREQUAL "GATEWAY")
     message(STATUS "[Build Mode] 보드 B (Gateway) 빌드")
 else()
     file(GLOB_RECURSE BOARD_SOURCES "board_c_uds/*.c")
-    message(STATUS "[Build Mode] 보드 C (UDS Server) 빌드")
+    message(STATUS "[Build Mode] 보드 C (UDS Client) 빌드")
 endif()
 
 # 3. 소스 파일 추가

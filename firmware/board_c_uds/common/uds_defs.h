@@ -5,11 +5,13 @@
 
 /* UDS service IDs used by Board C as a client */
 #define UDS_SID_DIAGNOSTIC_SESSION_CONTROL  0x10u
+#define UDS_SID_CLEAR_DTC                   0x14u
 #define UDS_SID_READ_DID                    0x22u
 #define UDS_SID_TESTER_PRESENT              0x3Eu
 
 /* Positive response IDs */
 #define UDS_POS_DIAGNOSTIC_SESSION_CONTROL  0x50u
+#define UDS_POS_CLEAR_DTC                   0x54u
 #define UDS_POS_READ_DID                    0x62u
 #define UDS_POS_TESTER_PRESENT              0x7Eu
 

@@ -8,6 +8,15 @@
 #define CAN_ID_CLUSTER_UDS_REQ      0x714u  /* Board C -> Cluster request */
 #define CAN_ID_CLUSTER_UDS_RESP     0x77Eu  /* Cluster -> Board C response */
 
+/*
+ * The same physical Board C CAN1 link can be connected to the Gateway CAN2
+ * diagnostic bus. Keep the existing cluster names for compatibility and add
+ * gateway aliases for the Safety/ADAS demo path.
+ */
+#define CAN_ID_GATEWAY_UDS_REQ      CAN_ID_CLUSTER_UDS_REQ
+#define CAN_ID_GATEWAY_UDS_RESP     CAN_ID_CLUSTER_UDS_RESP
+#define CAN_ID_ADAS_STATUS          0x3A0u
+
 /* UDS DID (Data Identifier) values used for cluster diagnosis */
 #define UDS_DID_PART_NUMBER         0xF187u /* Vehicle manufacturer spare part number */
 #define UDS_DID_SW_NUMBER           0xF188u /* ECU software number */
@@ -22,6 +31,10 @@
 #define UDS_DID_SPEED               0x1A0u /* Vehicle speed */
 #define UDS_DID_COOLANT             0xF40Eu /* Coolant temperature */
 #define UDS_DID_TEMP                UDS_DID_COOLANT
+#define UDS_DID_ADAS_STATUS         0xF410u /* Gateway ADAS flags/risk/distances */
+#define UDS_DID_ADAS_FRONT_DISTANCE 0xF411u /* Gateway ADAS front distance */
+#define UDS_DID_ADAS_REAR_DISTANCE  0xF412u /* Gateway ADAS rear distance */
+#define UDS_DID_ADAS_FAULT_BITMAP   0xF413u /* Gateway ADAS active fault/DTC bitmap */
 
 #define CAN_ID_RPM_DATA             UDS_DID_RPM      // 0x280
 #define CAN_ID_SPEED_DATA           UDS_DID_SPEED    // 0x1A0

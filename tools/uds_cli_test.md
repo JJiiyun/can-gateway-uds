@@ -36,12 +36,12 @@ RESULT: DID=0xF40E Coolant=80°C
 CLI> read adas
 [TX] 0x714 03 22 F4 10 00 00 00 00
 [RX] ID=0x77E DLC=8 Data=07 62 F4 10 21 03 1E FA
-RESULT: DID=0xF410 ADAS flags=0x21 risk=3 front=30cm rear=250cm
+[GATEWAY ADAS] flags=0x21 risk=3 front=30cm rear=250cm
 
 CLI> clear dtc
 [TX] 0x714 04 14 FF FF FF 00 00 00
 [RX] ID=0x77E DLC=8 Data=01 54 00 00 00 00 00 00
-RESULT: clear dtc positive response
+[GATEWAY CLEAR DTC OK]
 ```
 
 ## 트러블슈팅
