@@ -11,7 +11,7 @@
 | 0x1A0 | Bremse_1 / Speed | 8 | 100ms | 보드A | 보드B | `BR1_Rad_kmh`, start 17, len 15, scale 0.01 |
 | 0x288 | Motor_2 / Coolant | 8 | 1000ms | 보드A | 보드B | `MO2_Kuehlm_T`, start 8, len 8, scale 0.75, offset -48 |
 | 0x300 | IGN/Keepalive | 8 | 100ms | 보드A | 보드D | byte[0] bit0 = IGN ON |
-| 0x470 | Body Status | 8 | 100ms | 보드D | 보드B | byte[0] bitfield: turn/door/high/fog |
+| 0x390 | Body Status | 8 | 100ms | 보드D | 보드B | byte[0] bitfield: turn/door/high/fog |
 
 ## CAN2 - Diagnostic Bus (500kbps)
 
@@ -21,7 +21,7 @@
 | 0x1A0 | Speed (포워딩) | 8 | 100ms | 보드B | 계기판, 보드C | 동일 |
 | 0x288 | Coolant Temp (포워딩) | 8 | 1000ms | 보드B | 계기판, 보드C | 동일 |
 | 0x480 | Warning | 8 | 이벤트 | 보드B | 계기판 | byte[0] bitfield |
-| 0x470 | Body Status (포워딩) | 8 | 100ms | 보드B | 계기판, 보드C | 동일 |
+| 0x390 | Body Status (포워딩) | 8 | 100ms | 보드B | 계기판, 보드C | 동일 |
 | 0x050 | Airbag off | 8 | 100ms | 보드B | 계기판 | byte[1] = 0x80 |
 | 0x714 | UDS Request | 8 | 이벤트 | 보드C CLI | 게이트웨이/타깃 | ISO-TP Single Frame |
 | 0x77E | UDS Response | 8 | 이벤트 | 게이트웨이/타깃 | 보드C CLI | ISO-TP Single Frame |
