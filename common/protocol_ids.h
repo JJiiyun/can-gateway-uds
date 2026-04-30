@@ -6,7 +6,8 @@
 #define CAN_ID_ENGINE_DATA          0x100u
 #define CAN_ID_DASHBOARD_CTRL       0x200u
 #define CAN_ID_WARNING              0x480u
-#define CAN_ID_BODY_STATUS          0x470u
+#define CAN_ID_BODY_STATUS          0x390u
+#define CAN_ID_ADAS_STATUS          0x3A0u
 
 #define CAN_ID_UDS_REQ_BOARD_B      0x714u
 #define CAN_ID_UDS_RESP_BOARD_B     0x77Eu
@@ -15,9 +16,39 @@
 #define UDS_DID_RPM                 0xF40Cu
 #define UDS_DID_SPEED               0xF40Du
 #define UDS_DID_TEMP                0xF40Eu
+#define UDS_DID_ADAS_STATUS         0xF410u
+#define UDS_DID_ADAS_FRONT_DISTANCE 0xF411u
+#define UDS_DID_ADAS_REAR_DISTANCE  0xF412u
+#define UDS_DID_ADAS_FAULT_BITMAP   0xF413u
 
 #define CAN_ENGINE_DATA_DLC         8u
 #define CAN_DLC_BODY_STATUS         8u
+#define CAN_ADAS_STATUS_DLC         8u
+
+#define CAN_ADAS_STATUS_FLAGS_IDX          0u
+#define CAN_ADAS_STATUS_RISK_LEVEL_IDX     1u
+#define CAN_ADAS_STATUS_FRONT_CM_IDX       2u
+#define CAN_ADAS_STATUS_REAR_CM_IDX        3u
+#define CAN_ADAS_STATUS_FAULT_BITMAP_IDX   4u
+#define CAN_ADAS_STATUS_SPEED_KMH_IDX      5u
+#define CAN_ADAS_STATUS_INPUT_BITMAP_IDX   6u
+#define CAN_ADAS_STATUS_ALIVE_IDX          7u
+
+#define ADAS_FLAG_FRONT_COLLISION     (1u << 0)
+#define ADAS_FLAG_LANE_DEPARTURE      (1u << 1)
+#define ADAS_FLAG_HARSH_BRAKE         (1u << 2)
+#define ADAS_FLAG_REAR_OBSTACLE       (1u << 3)
+#define ADAS_FLAG_SENSOR_FAULT        (1u << 4)
+#define ADAS_FLAG_ACTIVE              (1u << 5)
+
+#define ADAS_FAULT_FRONT_SENSOR       (1u << 0)
+#define ADAS_FAULT_REAR_SENSOR        (1u << 1)
+#define ADAS_FAULT_BUTTON_STUCK       (1u << 2)
+#define ADAS_FAULT_MESSAGE_TIMEOUT    (1u << 3)
+
+#define ADAS_INPUT_LANE_BUTTON        (1u << 0)
+#define ADAS_INPUT_BRAKE_BUTTON       (1u << 1)
+#define ADAS_INPUT_SENSOR_FAULT       (1u << 2)
 
 #define BODY_BIT_TURN_LEFT          (1u << 0)
 #define BODY_BIT_TURN_RIGHT         (1u << 1)
