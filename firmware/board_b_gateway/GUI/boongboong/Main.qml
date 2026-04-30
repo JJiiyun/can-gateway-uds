@@ -1,507 +1,780 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 
 ApplicationWindow {
     id: root
-    width: 1180
-    height: 760
-    minimumWidth: 980
-    minimumHeight: 640
+    width: 1280
+    height: 820
+    minimumWidth: 1060
+    minimumHeight: 700
     visible: true
     title: qsTr("Board B Gateway Monitor")
     color: "#101418"
 
-    property color panelColor: "#181f26"
-    property color panelBorder: "#2a343f"
-    property color textPrimary: "#e8edf2"
-    property color textMuted: "#8a96a3"
-    property color goodColor: "#28c76f"
-    property color warnColor: "#ffb020"
-    property color badColor: "#ea5455"
-    property color accentColor: "#3ba7ff"
+    readonly property color panelColor: "#181f26"
+    readonly property color panelSoft: "#202831"
+    readonly property color panelDark: "#0d1115"
+    readonly property color panelBorder: "#2a343f"
+    readonly property color textPrimary: "#e8edf2"
+    readonly property color textMuted: "#8a96a3"
+    readonly property color goodColor: "#28c76f"
+    readonly property color warnColor: "#ffb020"
+    readonly property color badColor: "#ea5455"
+    readonly property color accentColor: "#3ba7ff"
 
     QtObject {
         id: gateway
-        property bool connected: false
-        property int can1Rx: 1811
-        property int can1Tx: 0
-        property int can2Rx: 2
-        property int can2Tx: 4572
-        property int busy: 0
-        property int errors: 0
-        property bool warning: false
-        property int rpm: 1450
-        property int speed: 32
-        property int coolant: 90
-        property bool ignition: true
-        property bool doorFl: false
-        property bool doorFr: false
-        property bool doorRl: true
-        property bool doorRr: false
-        property bool turnLeft: true
-        property bool turnRight: false
-        property bool highBeam: false
-        property bool fogLamp: true
+        property bool connected: serialBridge.connected
+        property int can1Rx: serialBridge.can1Rx
+        property int can1Tx: serialBridge.can1Tx
+        property int can2Rx: serialBridge.can2Rx
+        property int can2Tx: serialBridge.can2Tx
+        property int busy: serialBridge.busy
+        property int errors: serialBridge.errors
+        property bool warning: serialBridge.warning
+        property int rpm: serialBridge.rpm
+        property int speed: serialBridge.speed
+        property int coolant: serialBridge.coolant
+        property bool ignition: serialBridge.ignition
+        property bool doorFl: serialBridge.doorFl
+        property bool doorFr: serialBridge.doorFr
+        property bool doorRl: serialBridge.doorRl
+        property bool doorRr: serialBridge.doorRr
+        property bool turnLeft: serialBridge.turnLeft
+        property bool turnRight: serialBridge.turnRight
+        property bool highBeam: serialBridge.highBeam
+        property bool fogLamp: serialBridge.fogLamp
     }
 
-    Component {
-        id: metricCard
+    ListModel { id: logModel }
 
-        Rectangle {
-            property string title: ""
-            property string value: ""
-            property string detail: ""
-            property color accent: root.accentColor
+    Component.onCompleted: serialBridge.refreshPorts()
 
-            color: root.panelColor
-            border.color: root.panelBorder
-            border.width: 1
-            radius: 8
-            implicitHeight: 116
+    Connections {
+        target: serialBridge
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 8
+        function appendLine(line) {
+            if (logModel.count > 300)
+                logModel.remove(0)
+            logModel.append({ text: line })
+            logList.positionViewAtEnd()
+        }
 
-                RowLayout {
-                    Layout.fillWidth: true
+        function onGatewayLineReceived(time, line) {
+            appendLine(time + " | UART | GW | " + line)
+        }
 
-                    Text {
-                        text: title
-                        color: root.textMuted
-                        font.pixelSize: 14
-                        font.weight: Font.DemiBold
-                    }
+        function onFrameLineReceived(time, bus, dir, frameId, dlc, payload, decoded) {
+            appendLine(time + " | " + bus + " | " + dir + " | " + frameId + " | " + dlc + " | " + payload + " | " + decoded)
+        }
 
-                    Rectangle {
-                        Layout.alignment: Qt.AlignRight
-                        width: 10
-                        height: 10
-                        radius: 5
-                        color: accent
-                    }
-                }
-
-                Text {
-                    text: value
-                    color: root.textPrimary
-                    font.pixelSize: 30
-                    font.weight: Font.Bold
-                }
-
-                Text {
-                    text: detail
-                    color: root.textMuted
-                    font.pixelSize: 13
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                }
-            }
+        function onRawLineReceived(time, line) {
+            appendLine(time + " | UART | -- | " + line)
         }
     }
 
-    Component {
-        id: statePill
+    component MetricCard: Rectangle {
+        property string title: ""
+        property string value: ""
+        property string detail: ""
+        property color accent: root.accentColor
+
+        color: root.panelColor
+        border.color: root.panelBorder
+        border.width: 1
+        radius: 8
+
+        Text {
+            id: metricTitle
+            x: 18
+            y: 18
+            width: parent.width - 54
+            text: title
+            color: root.textMuted
+            font.pixelSize: 15
+            font.weight: Font.DemiBold
+            elide: Text.ElideRight
+        }
 
         Rectangle {
-            property string label: ""
-            property bool active: false
+            x: parent.width - 28
+            y: 24
+            width: 10
+            height: 10
+            radius: 5
+            color: accent
+        }
 
-            height: 32
-            radius: 6
-            color: active ? "#203b2d" : "#202831"
-            border.color: active ? root.goodColor : root.panelBorder
-            border.width: 1
+        Text {
+            x: 18
+            y: 48
+            width: parent.width - 36
+            height: 42
+            text: value
+            color: root.textPrimary
+            font.pixelSize: 32
+            font.weight: Font.Bold
+            elide: Text.ElideRight
+            verticalAlignment: Text.AlignVCenter
+        }
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                spacing: 8
+        Text {
+            x: 18
+            y: 98
+            width: parent.width - 36
+            text: detail
+            color: root.textMuted
+            font.pixelSize: 14
+            elide: Text.ElideRight
+        }
+    }
 
-                Rectangle {
-                    width: 8
-                    height: 8
-                    radius: 4
-                    color: active ? root.goodColor : root.textMuted
-                }
+    component SmallTile: Rectangle {
+        property string label: ""
+        property string value: ""
 
-                Text {
-                    text: label
-                    color: root.textPrimary
-                    font.pixelSize: 13
-                    font.weight: Font.DemiBold
-                }
-            }
+        color: root.panelSoft
+        radius: 7
+
+        Text {
+            x: 8
+            y: 12
+            width: parent.width - 16
+            text: label
+            color: root.textMuted
+            horizontalAlignment: Text.AlignHCenter
+            font.pixelSize: 12
+            elide: Text.ElideRight
+        }
+
+        Text {
+            x: 8
+            y: 34
+            width: parent.width - 16
+            text: value
+            color: root.textPrimary
+            horizontalAlignment: Text.AlignHCenter
+            font.pixelSize: 17
+            font.weight: Font.Bold
+            elide: Text.ElideRight
+        }
+    }
+
+    component StatusPill: Rectangle {
+        property string label: ""
+        property bool active: false
+
+        color: active ? "#203b2d" : root.panelSoft
+        border.color: active ? root.goodColor : root.panelBorder
+        border.width: 1
+        radius: 6
+
+        Rectangle {
+            x: 10
+            y: parent.height / 2 - 4
+            width: 8
+            height: 8
+            radius: 4
+            color: active ? root.goodColor : root.textMuted
+        }
+
+        Text {
+            x: 26
+            y: 0
+            width: parent.width - 34
+            height: parent.height
+            text: label
+            color: root.textPrimary
+            font.pixelSize: 13
+            font.weight: Font.DemiBold
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
         }
     }
 
     header: Rectangle {
-        height: 64
-        color: "#0d1115"
+        height: 104
+        color: root.panelDark
         border.color: root.panelBorder
         border.width: 1
+        clip: true
 
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 22
-            anchors.rightMargin: 22
-            spacing: 14
-
-            Text {
-                text: "Board B Gateway Monitor"
-                color: root.textPrimary
-                font.pixelSize: 22
-                font.weight: Font.Bold
-            }
-
-            Rectangle {
-                Layout.preferredWidth: 1
-                Layout.preferredHeight: 28
-                color: root.panelBorder
-            }
-
-            ComboBox {
-                id: portCombo
-                Layout.preferredWidth: 230
-                model: ["/dev/cu.usbserial", "/dev/cu.usbmodem", "/dev/cu.SLAB_USBtoUART"]
-            }
-
-            ComboBox {
-                Layout.preferredWidth: 120
-                model: ["115200", "921600"]
-            }
-
-            Button {
-                text: gateway.connected ? "Disconnect" : "Connect"
-                onClicked: gateway.connected = !gateway.connected
-            }
-
-            Button {
-                text: "Refresh"
-            }
-
-            Item {
-                Layout.fillWidth: true
-            }
-
-            Rectangle {
-                width: 112
-                height: 32
-                radius: 16
-                color: gateway.connected ? "#203b2d" : "#2a2020"
-                border.color: gateway.connected ? root.goodColor : root.badColor
-                border.width: 1
-
-                Text {
-                    anchors.centerIn: parent
-                    text: gateway.connected ? "CONNECTED" : "OFFLINE"
-                    color: root.textPrimary
-                    font.pixelSize: 12
-                    font.weight: Font.Bold
-                }
-            }
+        Text {
+            id: headerTitle
+            x: 22
+            y: 0
+            width: parent.width - 44
+            height: 42
+            text: "Board B Gateway Monitor"
+            color: root.textPrimary
+            font.pixelSize: 21
+            font.weight: Font.Bold
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
         }
-    }
 
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 18
-        spacing: 14
+        ComboBox {
+            id: portCombo
+            x: 22
+            y: 52
+            width: Math.max(230, Math.min(320, parent.width * 0.26))
+            height: 36
+            model: serialBridge.portNames
+        }
 
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 14
+        ComboBox {
+            id: baudCombo
+            x: portCombo.x + portCombo.width + 16
+            y: 52
+            width: 116
+            height: 36
+            model: ["115200", "921600"]
+        }
 
-            Loader {
-                Layout.fillWidth: true
-                sourceComponent: metricCard
-                onLoaded: {
-                    item.title = "CAN1 Bus"
-                    item.value = "RX " + gateway.can1Rx
-                    item.detail = "TX " + gateway.can1Tx + " / Powertrain + Body"
-                    item.accent = root.goodColor
-                }
-            }
-
-            Loader {
-                Layout.fillWidth: true
-                sourceComponent: metricCard
-                onLoaded: {
-                    item.title = "CAN2 Bus"
-                    item.value = "TX " + gateway.can2Tx
-                    item.detail = "RX " + gateway.can2Rx + " / Cluster + Diagnostic"
-                    item.accent = root.accentColor
-                }
-            }
-
-            Loader {
-                Layout.fillWidth: true
-                sourceComponent: metricCard
-                onLoaded: {
-                    item.title = "Gateway Health"
-                    item.value = gateway.warning ? "WARNING" : "NORMAL"
-                    item.detail = "busy " + gateway.busy + " / err " + gateway.errors
-                    item.accent = gateway.warning ? root.warnColor : root.goodColor
-                }
+        Button {
+            x: baudCombo.x + baudCombo.width + 16
+            y: 52
+            width: 118
+            height: 36
+            text: gateway.connected ? "Disconnect" : "Connect"
+            onClicked: {
+                if (gateway.connected)
+                    serialBridge.disconnectPort()
+                else
+                    serialBridge.connectToPort(portCombo.currentText, parseInt(baudCombo.currentText))
             }
         }
 
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 14
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                color: root.panelColor
-                border.color: root.panelBorder
-                border.width: 1
-                radius: 8
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 18
-                    spacing: 14
-
-                    Text {
-                        text: "Board A Engine"
-                        color: root.textPrimary
-                        font.pixelSize: 20
-                        font.weight: Font.Bold
-                    }
-
-                    Text {
-                        text: gateway.rpm + " rpm"
-                        color: root.textPrimary
-                        font.pixelSize: 42
-                        font.weight: Font.Bold
-                    }
-
-                    ProgressBar {
-                        Layout.fillWidth: true
-                        value: gateway.rpm / 7000
-                    }
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: 2
-                        columnSpacing: 18
-                        rowSpacing: 12
-
-                        Repeater {
-                            model: [
-                                ["Speed", gateway.speed + " km/h"],
-                                ["Coolant", gateway.coolant + " C"],
-                                ["IGN", gateway.ignition ? "ON" : "OFF"],
-                                ["Last RX", "24 ms ago"]
-                            ]
-
-                            delegate: Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 58
-                                radius: 6
-                                color: "#202831"
-
-                                Column {
-                                    anchors.centerIn: parent
-                                    spacing: 3
-
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: modelData[0]
-                                        color: root.textMuted
-                                        font.pixelSize: 12
-                                    }
-
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: modelData[1]
-                                        color: root.textPrimary
-                                        font.pixelSize: 18
-                                        font.weight: Font.Bold
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                color: root.panelColor
-                border.color: root.panelBorder
-                border.width: 1
-                radius: 8
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 18
-                    spacing: 14
-
-                    Text {
-                        text: "Board D Body"
-                        color: root.textPrimary
-                        font.pixelSize: 20
-                        font.weight: Font.Bold
-                    }
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: 4
-                        columnSpacing: 8
-                        rowSpacing: 8
-
-                        Loader { sourceComponent: statePill; onLoaded: { item.label = "FL Door"; item.active = gateway.doorFl } }
-                        Loader { sourceComponent: statePill; onLoaded: { item.label = "FR Door"; item.active = gateway.doorFr } }
-                        Loader { sourceComponent: statePill; onLoaded: { item.label = "RL Door"; item.active = gateway.doorRl } }
-                        Loader { sourceComponent: statePill; onLoaded: { item.label = "RR Door"; item.active = gateway.doorRr } }
-                    }
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: 2
-                        columnSpacing: 10
-                        rowSpacing: 10
-
-                        Loader { sourceComponent: statePill; onLoaded: { item.label = "Left Turn"; item.active = gateway.turnLeft } }
-                        Loader { sourceComponent: statePill; onLoaded: { item.label = "Right Turn"; item.active = gateway.turnRight } }
-                        Loader { sourceComponent: statePill; onLoaded: { item.label = "High Beam"; item.active = gateway.highBeam } }
-                        Loader { sourceComponent: statePill; onLoaded: { item.label = "Fog Lamp"; item.active = gateway.fogLamp } }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        radius: 8
-                        color: "#202831"
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 10
-
-                            Text {
-                                text: "Cluster / CAN2 Output"
-                                color: root.textPrimary
-                                font.pixelSize: 16
-                                font.weight: Font.Bold
-                            }
-
-                            Repeater {
-                                model: [
-                                    ["0x280", "Motor_1 RPM", "50 ms", true],
-                                    ["0x1A0", "Bremse_1 Speed", "500 ms", true],
-                                    ["0x390", "Body Forward", "100 ms", true],
-                                    ["0x480", "Warning", "event", false]
-                                ]
-
-                                delegate: RowLayout {
-                                    Layout.fillWidth: true
-
-                                    Text {
-                                        text: modelData[0]
-                                        color: root.accentColor
-                                        font.pixelSize: 14
-                                        font.weight: Font.Bold
-                                        Layout.preferredWidth: 58
-                                    }
-
-                                    Text {
-                                        text: modelData[1]
-                                        color: root.textPrimary
-                                        font.pixelSize: 14
-                                        Layout.fillWidth: true
-                                    }
-
-                                    Text {
-                                        text: modelData[2]
-                                        color: root.textMuted
-                                        font.pixelSize: 13
-                                        Layout.preferredWidth: 70
-                                    }
-
-                                    Rectangle {
-                                        width: 10
-                                        height: 10
-                                        radius: 5
-                                        color: modelData[3] ? root.goodColor : root.textMuted
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+        Button {
+            x: baudCombo.x + baudCombo.width + 150
+            y: 52
+            width: 90
+            height: 36
+            text: "Refresh"
+            onClicked: {
+                serialBridge.resetMonitor()
+                logModel.clear()
+                canIdField.text = ""
             }
         }
 
         Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 240
-            color: root.panelColor
-            border.color: root.panelBorder
+            id: statusBadge
+            x: parent.width - statusText.width - width - 34
+            y: 54
+            width: 112
+            height: 32
+            radius: 16
+            color: gateway.connected ? "#203b2d" : "#2a2020"
+            border.color: gateway.connected ? root.goodColor : root.badColor
             border.width: 1
-            radius: 8
 
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 14
-                spacing: 10
+            Text {
+                anchors.centerIn: parent
+                text: gateway.connected ? "CONNECTED" : "OFFLINE"
+                color: root.textPrimary
+                font.pixelSize: 12
+                font.weight: Font.Bold
+            }
+        }
 
-                RowLayout {
-                    Layout.fillWidth: true
+        Text {
+            id: statusText
+            x: parent.width - width - 18
+            y: 52
+            width: 190
+            height: 36
+            text: serialBridge.statusText
+            color: root.textMuted
+            font.pixelSize: 12
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+    }
+
+    Flickable {
+        id: flick
+        anchors.fill: parent
+        anchors.margins: 0
+        contentWidth: Math.max(width, 1040)
+        contentHeight: page.height
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AsNeeded
+        }
+
+        Item {
+            id: page
+            width: flick.contentWidth
+            height: 1010
+
+            readonly property int margin: 18
+            readonly property int gap: 14
+            readonly property int innerWidth: width - margin * 2
+            readonly property int cardW: (innerWidth - gap * 2) / 3
+            readonly property int halfW: (innerWidth - gap) / 2
+
+            MetricCard {
+                x: page.margin
+                y: 18
+                width: page.cardW
+                height: 132
+                title: "CAN1 Bus"
+                value: "RX " + gateway.can1Rx
+                detail: "TX " + gateway.can1Tx + " / Powertrain + Body"
+                accent: root.goodColor
+            }
+
+            MetricCard {
+                x: page.margin + page.cardW + page.gap
+                y: 18
+                width: page.cardW
+                height: 132
+                title: "CAN2 Bus"
+                value: "TX " + gateway.can2Tx
+                detail: "RX " + gateway.can2Rx + " / Cluster + Diagnostic"
+                accent: root.accentColor
+            }
+
+            MetricCard {
+                x: page.margin + (page.cardW + page.gap) * 2
+                y: 18
+                width: page.cardW
+                height: 132
+                title: "Gateway Health"
+                value: gateway.warning ? "WARNING" : "NORMAL"
+                detail: "busy " + gateway.busy + " / err " + gateway.errors
+                accent: gateway.warning ? root.warnColor : root.goodColor
+            }
+
+            Rectangle {
+                id: enginePanel
+                x: page.margin
+                y: 164
+                width: page.halfW
+                height: 360
+                color: root.panelColor
+                border.color: root.panelBorder
+                border.width: 1
+                radius: 8
+
+                Text {
+                    x: 18
+                    y: 18
+                    width: parent.width - 36
+                    text: "Board A Engine"
+                    color: root.textPrimary
+                    font.pixelSize: 20
+                    font.weight: Font.Bold
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    x: 18
+                    y: 64
+                    width: parent.width - 36
+                    height: 48
+                    text: gateway.rpm + " rpm"
+                    color: root.textPrimary
+                    font.pixelSize: 38
+                    font.weight: Font.Bold
+                    elide: Text.ElideRight
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                ProgressBar {
+                    x: 18
+                    y: 130
+                    width: parent.width - 36
+                    height: 14
+                    value: Math.min(1, gateway.rpm / 7000)
+                }
+
+                SmallTile {
+                    x: 18
+                    y: 170
+                    width: (parent.width - 50) / 2
+                    height: 68
+                    label: "Speed"
+                    value: gateway.speed + " km/h"
+                }
+
+                SmallTile {
+                    x: 32 + (parent.width - 50) / 2
+                    y: 170
+                    width: (parent.width - 50) / 2
+                    height: 68
+                    label: "Coolant"
+                    value: gateway.coolant + " C"
+                }
+
+                SmallTile {
+                    x: 18
+                    y: 252
+                    width: (parent.width - 50) / 2
+                    height: 68
+                    label: "IGN"
+                    value: gateway.ignition ? "ON" : "OFF"
+                }
+
+                SmallTile {
+                    x: 32 + (parent.width - 50) / 2
+                    y: 252
+                    width: (parent.width - 50) / 2
+                    height: 68
+                    label: "Last RX"
+                    value: serialBridge.lastEngineRx
+                }
+            }
+
+            Rectangle {
+                id: bodyPanel
+                x: page.margin + page.halfW + page.gap
+                y: 164
+                width: page.halfW
+                height: 360
+                color: root.panelColor
+                border.color: root.panelBorder
+                border.width: 1
+                radius: 8
+
+                Text {
+                    x: 18
+                    y: 18
+                    width: parent.width - 36
+                    text: "Board D Body"
+                    color: root.textPrimary
+                    font.pixelSize: 20
+                    font.weight: Font.Bold
+                    elide: Text.ElideRight
+                }
+
+                readonly property int pillW: (width - 60) / 4
+
+                StatusPill { x: 18; y: 60; width: bodyPanel.pillW; height: 34; label: "FL Door"; active: gateway.doorFl }
+                StatusPill { x: 28 + bodyPanel.pillW; y: 60; width: bodyPanel.pillW; height: 34; label: "FR Door"; active: gateway.doorFr }
+                StatusPill { x: 38 + bodyPanel.pillW * 2; y: 60; width: bodyPanel.pillW; height: 34; label: "RL Door"; active: gateway.doorRl }
+                StatusPill { x: 48 + bodyPanel.pillW * 3; y: 60; width: bodyPanel.pillW; height: 34; label: "RR Door"; active: gateway.doorRr }
+                StatusPill { x: 18; y: 104; width: bodyPanel.pillW; height: 34; label: "Left"; active: gateway.turnLeft }
+                StatusPill { x: 28 + bodyPanel.pillW; y: 104; width: bodyPanel.pillW; height: 34; label: "Right"; active: gateway.turnRight }
+                StatusPill { x: 38 + bodyPanel.pillW * 2; y: 104; width: bodyPanel.pillW; height: 34; label: "High"; active: gateway.highBeam }
+                StatusPill { x: 48 + bodyPanel.pillW * 3; y: 104; width: bodyPanel.pillW; height: 34; label: "Fog"; active: gateway.fogLamp }
+
+                Rectangle {
+                    x: 18
+                    y: 160
+                    width: parent.width - 36
+                    height: 176
+                    radius: 8
+                    color: root.panelSoft
 
                     Text {
-                        text: "CAN Log"
+                        x: 14
+                        y: 12
+                        width: parent.width - 28
+                        text: "Cluster / CAN2 Output"
+                        color: root.textPrimary
+                        font.pixelSize: 16
+                        font.weight: Font.Bold
+                        elide: Text.ElideRight
+                    }
+
+                    Repeater {
+                        model: [
+                            ["0x280", "Motor_1 RPM", "50 ms", serialBridge.clusterRpmActive],
+                            ["0x1A0", "Bremse_1 Speed", "500 ms", serialBridge.clusterSpeedActive],
+                            ["0x390", "Body Forward", "100 ms", serialBridge.clusterBodyActive],
+                            ["0x480", "Warning", "event", gateway.warning]
+                        ]
+
+                        delegate: Item {
+                            x: 14
+                            y: 48 + index * 30
+                            width: parent.width - 28
+                            height: 24
+
+                            Text {
+                                x: 0
+                                y: 0
+                                width: 58
+                                height: parent.height
+                                text: modelData[0]
+                                color: root.accentColor
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                x: 68
+                                y: 0
+                                width: parent.width - 164
+                                height: parent.height
+                                text: modelData[1]
+                                color: root.textPrimary
+                                font.pixelSize: 14
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                x: parent.width - 86
+                                y: 0
+                                width: 64
+                                height: parent.height
+                                text: modelData[2]
+                                color: root.textMuted
+                                font.pixelSize: 13
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+
+                            Rectangle {
+                                x: parent.width - 10
+                                y: 7
+                                width: 10
+                                height: 10
+                                radius: 5
+                                color: modelData[3] ? root.goodColor : root.textMuted
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                id: logPanel
+                x: page.margin
+                y: 538
+                width: page.innerWidth
+                height: 430
+                color: root.panelColor
+                border.color: root.panelBorder
+                border.width: 1
+                radius: 8
+
+                Text {
+                    x: 18
+                    y: 18
+                    width: 96
+                    height: 36
+                    text: "CAN Log"
+                    color: root.textPrimary
+                    font.pixelSize: 18
+                    font.weight: Font.Bold
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+
+                TextField {
+                    id: canIdField
+                    x: 124
+                    y: 18
+                    width: 160
+                    height: 36
+                    placeholderText: "CAN ID, e.g. 100"
+                    color: root.textPrimary
+                    placeholderTextColor: root.textMuted
+                    inputMethodHints: Qt.ImhUppercaseOnly
+                    onAccepted: applyCanFilterButton.clicked()
+                }
+
+                Button {
+                    id: applyCanFilterButton
+                    x: 304
+                    y: 18
+                    width: 92
+                    height: 36
+                    text: "Apply ID"
+                    onClicked: {
+                        var idText = canIdField.text.trim()
+                        if (idText.length === 0)
+                            return
+                        if (idText.startsWith("0x") || idText.startsWith("0X"))
+                            idText = idText.slice(2)
+                        serialBridge.sendCommand("canlog id " + idText)
+                        serialBridge.sendCommand("canlog on")
+                    }
+                }
+
+                Button {
+                    x: 416
+                    y: 18
+                    width: 64
+                    height: 36
+                    text: "All"
+                    onClicked: {
+                        serialBridge.sendCommand("canlog all")
+                        serialBridge.sendCommand("canlog on")
+                    }
+                }
+
+                Button {
+                    x: 500
+                    y: 18
+                    width: 84
+                    height: 36
+                    text: "CAN Off"
+                    onClicked: serialBridge.sendCommand("canlog off")
+                }
+
+                Button {
+                    x: 604
+                    y: 18
+                    width: 76
+                    height: 36
+                    text: "GW Log"
+                    onClicked: serialBridge.sendCommand("log on")
+                }
+
+                Button {
+                    x: 700
+                    y: 18
+                    width: 76
+                    height: 36
+                    text: "GW Off"
+                    onClicked: serialBridge.sendCommand("log off")
+                }
+
+                Button {
+                    x: parent.width - 92
+                    y: 18
+                    width: 74
+                    height: 36
+                    text: "Clear"
+                    onClicked: logModel.clear()
+                }
+
+                Rectangle {
+                    id: latestPanel
+                    x: 18
+                    y: 70
+                    width: parent.width - 36
+                    height: 96
+                    radius: 6
+                    color: root.panelSoft
+                    border.color: root.panelBorder
+
+                    Text {
+                        x: 14
+                        y: 13
+                        width: 160
+                        text: "Latest Frame"
+                        color: root.textMuted
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
+
+                    Text {
+                        x: 14
+                        y: 38
+                        width: 160
+                        text: serialBridge.latestFrameBus + " " + serialBridge.latestFrameDir + " " + serialBridge.latestFrameId
                         color: root.textPrimary
                         font.pixelSize: 18
                         font.weight: Font.Bold
+                        elide: Text.ElideRight
                     }
 
-                    Item { Layout.fillWidth: true }
+                    Text {
+                        x: 14
+                        y: 68
+                        width: 160
+                        text: "DLC " + serialBridge.latestFrameDlc
+                        color: root.textMuted
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
+                    }
 
                     Repeater {
-                        model: ["All", "0x100", "0x280", "0x1A0", "0x390", "0x480"]
+                        model: serialBridge.latestFrameBytes
 
-                        delegate: Button {
-                            text: modelData
-                            checkable: true
-                            checked: index === 0
+                        delegate: Rectangle {
+                            x: 200 + index * 49
+                            y: 27
+                            width: 42
+                            height: 42
+                            radius: 6
+                            color: root.panelDark
+                            border.color: root.panelBorder
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData
+                                color: root.textPrimary
+                                font.family: "Menlo"
+                                font.pixelSize: 14
+                                font.weight: Font.Bold
+                            }
                         }
                     }
 
-                    Button {
-                        text: "Clear"
+                    Rectangle {
+                        x: 604
+                        y: 14
+                        width: 1
+                        height: parent.height - 28
+                        color: root.panelBorder
+                    }
+
+                    Text {
+                        x: 630
+                        y: 13
+                        width: parent.width - 650
+                        text: "Decoded"
+                        color: root.textMuted
+                        font.pixelSize: 12
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
+
+                    Text {
+                        x: 630
+                        y: 38
+                        width: parent.width - 650
+                        text: serialBridge.latestFrameDecoded
+                        color: root.textPrimary
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
+
+                    Text {
+                        x: 630
+                        y: 68
+                        width: parent.width - 650
+                        text: "raw: " + serialBridge.latestFrameRaw
+                        color: root.textMuted
+                        font.family: "Menlo"
+                        font.pixelSize: 12
+                        elide: Text.ElideRight
                     }
                 }
 
                 Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    x: 18
+                    y: 184
+                    width: parent.width - 36
+                    height: parent.height - 202
                     radius: 6
-                    color: "#0d1115"
+                    color: root.panelDark
                     border.color: root.panelBorder
 
                     ListView {
+                        id: logList
                         anchors.fill: parent
                         anchors.margins: 8
                         clip: true
-                        model: [
-                            "12:30:01.120 | CAN1 | RX | 0x100 | 8 | DC 05 20 00 5A 03 00 00 | rpm=1500 speed=32 ign=1",
-                            "12:30:01.130 | CAN2 | TX | 0x280 | 8 | 00 00 70 17 00 00 00 00 | cluster rpm=1500",
-                            "12:30:01.150 | CAN1 | RX | 0x390 | 8 | 10 00 01 00 00 22 00 04 | door=1 left=1",
-                            "12:30:01.151 | CAN2 | TX | 0x390 | 8 | 10 00 01 00 00 22 00 04 | body forward"
-                        ]
+                        model: logModel
 
                         delegate: Text {
                             width: ListView.view.width
-                            height: 28
-                            text: modelData
+                            height: 24
+                            text: model.text
                             color: root.textPrimary
                             font.family: "Menlo"
                             font.pixelSize: 12
