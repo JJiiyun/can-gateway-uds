@@ -5,7 +5,7 @@
 ```
 ┌──────────────────────────┐      ┌──────────────────┐
 │   보드A (Engine ECU)     │      │ 보드D Body/BCM   │
-│   - 가변저항 2개 ADC     │      │ - 0x470 Body TX  │
+│   - 가변저항 2개 ADC     │      │ - 0x390 Body TX  │
 │   - RPM/Speed/Coolant TX │      │ - Door/Turn/Lamp │
 │   - 0x300 IGN TX         │      │ - 0x300 IGN RX   │
 └────────────┬─────────────┘      └────────┬─────────┘
@@ -37,7 +37,7 @@
 | 도메인 | 버스 | 메시지 |
 |---|---|---|
 | Powertrain | CAN1 | 엔진 관련 신호 (0x280 RPM, 0x1A0 Speed, 0x288 Coolant) |
-| Body | CAN1/CAN2 | Body 상태 (0x470), IGN/Keepalive (0x300) |
+| Body | CAN1/CAN2 | Body 상태 (0x390), IGN (`0x100 byte5 bit0`) |
 | Diagnostic/Cluster | CAN2 | UDS (0x714/0x77E), 계기판 제어 (0x480 Warning), Body 상태 포워딩 |
 
 ## FreeRTOS Task 구조
@@ -73,8 +73,8 @@
 4. `GatewayTask`가 Queue pop → 라우팅 테이블 조회
 5. 이상 감지: RPM > 5500 → `s_warning_active = 1`, CAN2 `0x480` 송신
 6. CAN2로 `0x280` 포워딩 → 계기판이 수신하여 바늘 움직임
-7. 보드D가 도어/방향지시등/하이빔/안개등 상태를 `0x470`으로 송신
-8. 보드B가 `0x470`을 CAN2로 포워딩
+7. 보드D가 도어/방향지시등/하이빔/안개등 상태를 `0x390`으로 송신
+8. 보드B가 `0x390`을 CAN2로 포워딩
 9. PC CLI에서 `read rpm` 입력
 10. 보드C가 `0x714` 요청 → `0x77E` 응답 확인
 

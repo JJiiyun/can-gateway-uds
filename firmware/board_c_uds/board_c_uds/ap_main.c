@@ -33,11 +33,11 @@ void UDSMainTask(void *argument)
     CLI_CMD_Init();
 
     cliPrintf("\r\n========================================\r\n");
-    cliPrintf(" Board C - Cluster UDS Client Ready\r\n");
-    cliPrintf(" Role: CAN1 query to instrument cluster\r\n");
-    cliPrintf(" Cluster Req : 0x%03X  (Board C -> Cluster)\r\n", CAN_ID_CLUSTER_UDS_REQ);
-    cliPrintf(" Cluster Resp: 0x%03X  (Cluster -> Board C)\r\n", CAN_ID_CLUSTER_UDS_RESP);
-    cliPrintf(" Try: read vin  (team-style: resend every 3 sec, any key stop)\r\n");
+    cliPrintf(" Board C - UDS Client Ready\r\n");
+    cliPrintf(" Role: CAN1 query to cluster or Gateway ADAS server\r\n");
+    cliPrintf(" UDS Req : 0x%03X  (Board C -> Gateway/Cluster)\r\n", CAN_ID_CLUSTER_UDS_REQ);
+    cliPrintf(" UDS Resp: 0x%03X  (Gateway/Cluster -> Board C)\r\n", CAN_ID_CLUSTER_UDS_RESP);
+    cliPrintf(" Try: read vin, read adas, read fault, clear dtc\r\n");
     cliPrintf("========================================\r\n");
     cliPrintf("CLI > ");
 

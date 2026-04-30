@@ -70,10 +70,10 @@ static void cmd_cluster_info(uint8_t argc, char *argv[])
 
     UDS_Client_GetStatus(&c);
 
-    cliPrintf("\r\n[Board C - Cluster UDS Diagnostic Client]\r\n");
+    cliPrintf("\r\n[Board C - Cluster/Gateway UDS Diagnostic Client]\r\n");
     cliPrintf("CAN Bus             : CAN1\r\n");
-    cliPrintf("Cluster Req CAN ID  : 0x%03lX  (Board C -> Cluster)\r\n", (unsigned long)c.req_id);
-    cliPrintf("Cluster Resp CAN ID : 0x%03lX  (Cluster -> Board C)\r\n", (unsigned long)c.resp_id);
+    cliPrintf("UDS Req CAN ID      : 0x%03lX  (Board C -> Gateway/Cluster)\r\n", (unsigned long)c.req_id);
+    cliPrintf("UDS Resp CAN ID     : 0x%03lX  (Gateway/Cluster -> Board C)\r\n", (unsigned long)c.resp_id);
 
     cliPrintf("\r\n[Dedicated UDS DID Requests]\r\n");
     cliPrintf("VIN      : %04X  -> read vin\r\n",    UDS_DID_VIN);
@@ -89,6 +89,13 @@ static void cmd_cluster_info(uint8_t argc, char *argv[])
     cliPrintf("Speed    : %04X  -> read speed\r\n",  UDS_DID_SPEED);
     cliPrintf("Coolant  : %04X  -> read temp\r\n",   UDS_DID_COOLANT);
 
+    cliPrintf("\r\n[Gateway Safety/ADAS DID Requests]\r\n");
+    cliPrintf("ADAS     : %04X  -> read adas\r\n",   UDS_DID_ADAS_STATUS);
+    cliPrintf("Front    : %04X  -> read front\r\n",  UDS_DID_ADAS_FRONT_DISTANCE);
+    cliPrintf("Rear     : %04X  -> read rear\r\n",   UDS_DID_ADAS_REAR_DISTANCE);
+    cliPrintf("Fault    : %04X  -> read fault\r\n",  UDS_DID_ADAS_FAULT_BITMAP);
+    cliPrintf("ClearDTC : 14 FF FF FF -> clear dtc\r\n");
+
     // 나머지 status 출력은 동일
     cliPrintf("\r\n[Status]\r\n");
     cliPrintf("Last DID : 0x%04X\r\n", c.last_did);
@@ -102,8 +109,9 @@ static void cmd_read_cluster(uint8_t argc, char *argv[])
 {
     if (argc != 2u)
     {
-        cliPrintf("usage: read vin|part|sw|swver|serial|hw|system|rpm|speed|temp|all\r\n");
+        cliPrintf("usage: read vin|part|sw|swver|serial|hw|system|rpm|speed|temp|adas|front|rear|fault|all\r\n");
         cliPrintf("ex   : read vin\r\n");
+        cliPrintf("ex   : read adas\r\n");
         cliPrintf("ex   : read part\r\n");
         return;
     }
@@ -148,6 +156,22 @@ static void cmd_read_cluster(uint8_t argc, char *argv[])
     {
         UDS_Execute_Diagnostic(UDS_DID_COOLANT, "TEMP");
     }
+    else if (strcmp(argv[1], "adas") == 0)
+    {
+        UDS_Execute_Diagnostic(UDS_DID_ADAS_STATUS, "ADAS");
+    }
+    else if (strcmp(argv[1], "front") == 0)
+    {
+        UDS_Execute_Diagnostic(UDS_DID_ADAS_FRONT_DISTANCE, "ADAS FRONT");
+    }
+    else if (strcmp(argv[1], "rear") == 0)
+    {
+        UDS_Execute_Diagnostic(UDS_DID_ADAS_REAR_DISTANCE, "ADAS REAR");
+    }
+    else if (strcmp(argv[1], "fault") == 0 || strcmp(argv[1], "dtc") == 0)
+    {
+        UDS_Execute_Diagnostic(UDS_DID_ADAS_FAULT_BITMAP, "ADAS FAULT");
+    }
     else if (strcmp(argv[1], "all") == 0)
     {
         UDS_Execute_Diagnostic(UDS_DID_ALL, "ALL");
@@ -155,8 +179,19 @@ static void cmd_read_cluster(uint8_t argc, char *argv[])
     else
     {
         cliPrintf("unknown target: %s\r\n", argv[1]);
-        cliPrintf("usage: read vin|part|sw|swver|serial|hw|system|rpm|speed|temp\r\n");
+        cliPrintf("usage: read vin|part|sw|swver|serial|hw|system|rpm|speed|temp|adas|front|rear|fault\r\n");
     }
+}
+
+static void cmd_clear(uint8_t argc, char *argv[])
+{
+    if (argc != 2u || strcmp(argv[1], "dtc") != 0)
+    {
+        cliPrintf("usage: clear dtc\r\n");
+        return;
+    }
+
+    UDS_Execute_ClearDtc();
 }
 
 static void cmd_cl_target(uint8_t argc, char *argv[])
@@ -367,6 +402,7 @@ void CLI_CMD_Init(void)
     /* 계기판 UDS Client 명령 */
     cliAdd("cluster_info", cmd_cluster_info);
     cliAdd("read", cmd_read_cluster);
+    cliAdd("clear", cmd_clear);
 
     /* 직접 DID/ID를 지정해서 계기판에 요청 */
     cliAdd("cl_target", cmd_cl_target);

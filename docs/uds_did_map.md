@@ -10,6 +10,10 @@ SID 0x22 (ReadDataByIdentifier) 지원 DID 목록.
 | 0xF40C | Engine RPM | 2 | 현재 엔진 회전수 | rpm, Big-Endian |
 | 0xF40D | Vehicle Speed | 2 | 현재 차량 속도 | km/h, Big-Endian |
 | 0xF40E | Coolant Temp | 1 | 냉각수 온도 | °C, signed |
+| 0xF410 | ADAS Status | 4 | flags, risk level, front distance, rear distance | raw/cm |
+| 0xF411 | Front Distance | 2 | 전방 거리 | cm, Big-Endian |
+| 0xF412 | Rear Distance | 2 | 후방 거리 | cm, Big-Endian |
+| 0xF413 | ADAS Fault Bitmap | 2 | active fault bitmap, latched DTC bitmap | bitfield |
 
 > ⚠️ DID 0xF190 (VIN)은 17바이트라 ISO-TP 멀티프레임이 필요함.
 > 2주 스코프에서는 앞 4바이트만 Single Frame으로 반환 (또는 NRC 0x31).
@@ -50,3 +54,13 @@ Response: 77E  03 7F 22 31 00 00 00 00
 | 0x11 | Service Not Supported | 지원 안 하는 SID (0x10, 0x27 등) |
 | 0x13 | Incorrect Message Length | PCI length 불일치 |
 | 0x31 | Request Out of Range | DID 테이블에 없음 |
+
+## Board C CLI 확장
+
+| 명령 | UDS 요청 | 설명 |
+|---|---|---|
+| `read adas` | `22 F4 10` | ADAS flags/risk/front/rear 조회 |
+| `read front` | `22 F4 11` | 전방 거리 조회 |
+| `read rear` | `22 F4 12` | 후방 거리 조회 |
+| `read fault` | `22 F4 13` | active fault와 latched DTC bitmap 조회 |
+| `clear dtc` | `14 FF FF FF` | Gateway가 보관한 ADAS latched DTC clear |

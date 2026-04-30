@@ -4,10 +4,13 @@
 #include "cli.h"
 #include "gateway_body_bridge.h"
 #include "gateway_engine_bridge.h"
+#include "gateway_safety_bridge.h"
+#include "gateway_uds_server.h"
 #include "uart.h"
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 extern CAN_HandleTypeDef hcan2;
 
@@ -67,6 +70,7 @@ void StartDefaultTask(void *argument)
     }
 
     if (CAN_BSP_Init() == HAL_OK) {
+        GatewaySafetyBridge_Init();
         s_gateway_ready = 1U;
         log_printf("\r\n[GW] Gateway init complete\r\n");
     } else {
@@ -100,6 +104,8 @@ void GatewayTask(void *argument)
         CanCliMonitor_LogRx(&rxMsg);
         GatewayEngineBridge_OnRx(&rxMsg);
         GatewayBodyBridge_OnRx(&rxMsg);
+        GatewaySafetyBridge_OnRx(&rxMsg);
+        GatewayUdsServer_OnRx(&rxMsg);
 
         if (rxMsg.bus == 1U && rxMsg.id == CAN_ID_ENGINE_DATA) {
             uint16_t rpm = CAN_GetU16LE(rxMsg.data, CAN_ENGINE_DATA_RPM_IDX);
@@ -133,6 +139,7 @@ void ClusterTask(void *argument)
     for (;;) {
         GatewayEngineBridge_Task10ms();
         GatewayBodyBridge_Task10ms();
+        GatewaySafetyBridge_Task10ms();
         osDelay(10U);
     }
 }
@@ -147,14 +154,21 @@ void LoggerTask(void *argument)
 
     for (;;) {
         if (s_status_log_enabled != 0U) {
-            log_printf("[GW] RX1=%lu TX1=%lu RX2=%lu TX2=%lu busy=%lu err=%lu warn=%u\r\n",
+            GatewaySafetyDiagnostic_t safety;
+            GatewaySafetyBridge_GetDiagnostic(&safety);
+
+            log_printf("[GW] RX1=%lu TX1=%lu RX2=%lu TX2=%lu busy=%lu err=%lu warn=%u adas=%u risk=%u fault=0x%02X dtc=0x%02X\r\n",
                        (unsigned long)can1RxCount,
                        (unsigned long)can1TxCount,
                        (unsigned long)can2RxCount,
                        (unsigned long)can2TxCount,
                        (unsigned long)canTxBusyCount,
                        (unsigned long)canTxErrorCount,
-                       (unsigned int)s_warning_active);
+                       (unsigned int)s_warning_active,
+                       (unsigned int)safety.valid,
+                       (unsigned int)safety.risk_level,
+                       (unsigned int)safety.active_fault_bitmap,
+                       (unsigned int)safety.dtc_bitmap);
         }
         osDelay(1000U);
     }
