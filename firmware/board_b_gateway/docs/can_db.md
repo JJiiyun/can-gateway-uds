@@ -11,7 +11,7 @@
 | 0x1A0 | Bremse_1 / Speed | 8 | 100ms | 보드A | 보드B | `BR1_Rad_kmh`, start 17, len 15, scale 0.01 |
 | 0x288 | Motor_2 / Coolant | 8 | 1000ms | 보드A | 보드B | `MO2_Kuehlm_T`, start 8, len 8, scale 0.75, offset -48 |
 | 0x300 | IGN/Keepalive | 8 | 100ms | 보드A | 보드D | byte[0] bit0 = IGN ON |
-| 0x390 | mGate_Komf_1 Body Status | 8 | 100ms | 보드D | 보드B | Golf6 DBC body bitfield |
+| 0x390 | Body Status | 8 | 100ms | 보드D | 보드B | byte[0] bitfield: turn/door/high/fog |
 
 ## CAN2 - Diagnostic Bus (500kbps)
 

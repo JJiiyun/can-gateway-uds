@@ -37,7 +37,7 @@
 | 도메인 | 버스 | 메시지 |
 |---|---|---|
 | Powertrain | CAN1 | 엔진 관련 신호 (0x280 RPM, 0x1A0 Speed, 0x288 Coolant) |
-| Body | CAN1/CAN2 | Body 상태 (0x390), IGN (`0x100 byte5 bit0`) |
+| Body | CAN1/CAN2 | Body 상태 (0x390), IGN/Keepalive (0x300) |
 | Diagnostic/Cluster | CAN2 | UDS (0x714/0x77E), 계기판 제어 (0x480 Warning), Body 상태 포워딩 |
 
 ## FreeRTOS Task 구조

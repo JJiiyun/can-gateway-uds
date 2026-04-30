@@ -76,9 +76,9 @@ uint8_t BCM_Body_IsIgnOn(void);
 uint8_t BCM_Body_GetLampStatus(void);
 uint8_t BCM_Body_GetDoorStatus(void);
 ```
-- **책임**: GPIO 입력을 읽어 Golf6 `0x390 mGate_Komf_1` Body Status 송신.
-- **책임**: `0x100` EngineData 또는 Golf6 `0x570`/`0x572` Klemme 15 수신 시 IGN 상태 갱신.
-- **보장**: `0x390` bitfield는 `bcm_signal.c`의 Golf6 DBC bit mapping만 사용.
+- **책임**: GPIO 입력을 읽어 `0x390` Body Status 송신.
+- **책임**: `0x300` IGN/Keepalive 수신 시 byte[0] bit0로 IGN 상태 갱신.
+- **보장**: `0x390` Body Status는 `protocol_ids.h`의 `CAN_ID_BODY_STATUS` 기준으로 관리.
 
 ### ⑥ `cluster_can` (추가 예정)
 
