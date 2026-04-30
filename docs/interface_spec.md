@@ -15,12 +15,12 @@
 │  common/can_bsp.*  │ ← ① 성재/민진 구현, 나머지 전원 사용
 └─────────┬──────────┘
           │
-  ┌───────┼──────────┬──────────┬──────────┬──────────┐
-  │       │          │          │          │          │
-┌─▼──┐ ┌──▼──┐  ┌────▼────┐ ┌───▼──┐  ┌────▼────┐ ┌──▼───┐
-│eng │ │ gw  │  │ cluster │ │ uds  │  │  body   │ │ main │
-│ ②  │ │ ③  │  │   ⑥    │ │  ④  │  │   ⑤     │ │  ⑦  │
-└────┘ └─────┘  └─────────┘ └──────┘  └─────────┘ └──────┘
+  ┌───────┼──────────┬──────────┬──────────┬──────────┬──────────┐
+  │       │          │          │          │          │          │
+┌─▼──┐ ┌──▼──┐  ┌────▼────┐ ┌───▼──┐  ┌────▼────┐ ┌──▼───┐ ┌──▼────┐
+│eng │ │ gw  │  │ cluster │ │ uds  │  │  body   │ │ main │ │safety │
+│ ②  │ │ ③  │  │   ⑥    │ │  ④  │  │   ⑤     │ │  ⑦  │ │  ⑧   │
+└────┘ └─────┘  └─────────┘ └──────┘  └─────────┘ └──────┘ └───────┘
 ```
 
 ## 모듈별 공개 API 요약
@@ -54,8 +54,9 @@ void EngineSim_GetStatus(EngineSimStatus_t *status);
 void StartDefaultTask(void *argument);
 ```
 - **책임**: CAN1의 엔진/속도/냉각수 메시지를 CAN2로 포워딩.
-- **책임**: RPM >= 5000 감지 시 `0x480` warning 송신.
-- **책임**: CAN2의 UDS request `0x714`를 CAN1로 라우팅.
+- **책임**: RPM >= 5000 감지 시 warning 상태 갱신.
+- **책임**: Board E `0x3A0 ADAS_Status` 수신 시 `risk_level >= 2`를 CAN2 `0x480 mMotor_5` warning bit로 변환.
+- **책임**: CAN2의 UDS request `0x714`/`0x7E0`에 대해 ADAS DID와 clear DTC 응답.
 
 ### ④ `board_c_uds/uds_server` (은빈)
 
@@ -64,7 +65,8 @@ void UDS_Server_Init(void);
 void UDS_Server_Process(void);
 void UDS_Execute_Diagnostic(uint16_t did, const char *label);
 ```
-- **책임**: UART CLI `read vin|rpm|speed|temp` → UDS SID 0x22 요청.
+- **책임**: UART CLI `read vin|rpm|speed|temp|adas|front|rear|fault` → UDS SID 0x22 요청.
+- **책임**: UART CLI `clear dtc` → UDS SID 0x14 요청.
 - **책임**: `0x714` 요청 송신, `0x77E` 응답 수신.
 
 ### ⑤ `board_d_body/bcm`
@@ -76,9 +78,9 @@ uint8_t BCM_Body_IsIgnOn(void);
 uint8_t BCM_Body_GetLampStatus(void);
 uint8_t BCM_Body_GetDoorStatus(void);
 ```
-- **책임**: GPIO 입력을 읽어 `0x470` Body Status 송신.
-- **책임**: `0x300` IGN/Keepalive 수신 시 byte[0] bit0로 IGN 상태 갱신.
-- **보장**: `0x470` bitfield는 `protocol_ids.h`의 `VW470_SET_*` 매크로만 사용.
+- **책임**: GPIO 입력을 읽어 Golf6 `0x390 mGate_Komf_1` Body Status 송신.
+- **책임**: `0x100` EngineData 또는 Golf6 `0x570`/`0x572` Klemme 15 수신 시 IGN 상태 갱신.
+- **보장**: `0x390` bitfield는 `bcm_signal.c`의 Golf6 DBC bit mapping만 사용.
 
 ### ⑥ `cluster_can` (추가 예정)
 
@@ -98,6 +100,16 @@ void Cluster_Task(void *argument);
 
 각 보드 `main.c`는 CubeMX 초기화와 FreeRTOS 시작만 담당합니다.
 실제 앱 진입점은 각 보드 `src/*_main.c` 또는 `src/bcm_main.c`의 Task 오버라이드입니다.
+
+### ⑧ `board_e_safety/adas`
+
+```c
+void ADAS_Safety_Task(void *argument);
+int ADAS_Can_SendStatus(const AdasStatus_t *status);
+```
+- **책임**: ADC/GPIO 입력과 Board A speed를 사용해 위험 상태 판단.
+- **책임**: CAN1 `0x3A0 ADAS_Status`를 100ms 주기로 송신.
+- **보장**: `0x3A0`은 CAN1 내부 프로젝트 프레임이며, Gateway 기본 설정에서는 CAN2로 원본 포워딩하지 않음.
 
 ## 공유 자원 (Queue/Mutex)
 

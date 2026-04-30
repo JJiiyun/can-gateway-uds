@@ -15,6 +15,11 @@
 | `read rpm` | RPM DID `0xF40C` 요청 |
 | `read speed` | Speed DID `0xF40D` 요청 |
 | `read temp` | Coolant DID `0xF40E` 요청 |
+| `read adas` | ADAS status DID `0xF410` 요청 |
+| `read front` | Front distance DID `0xF411` 요청 |
+| `read rear` | Rear distance DID `0xF412` 요청 |
+| `read fault` | ADAS fault bitmap DID `0xF413` 요청 |
+| `clear dtc` | ADAS latched DTC clear, SID `0x14` |
 
 ### 예시 세션
 ```
@@ -27,6 +32,16 @@ CLI> read temp
 [TX] 714  03 22 F4 0E 00 00 00 00
 [RX] 77E  04 62 F4 0E 50 00 00 00
 RESULT: DID=0xF40E Coolant=80°C
+
+CLI> read adas
+[TX] 0x714 03 22 F4 10 00 00 00 00
+[RX] ID=0x77E DLC=8 Data=07 62 F4 10 21 03 1E FA
+RESULT: DID=0xF410 ADAS flags=0x21 risk=3 front=30cm rear=250cm
+
+CLI> clear dtc
+[TX] 0x714 04 14 FF FF FF 00 00 00
+[RX] ID=0x77E DLC=8 Data=01 54 00 00 00 00 00 00
+RESULT: clear dtc positive response
 ```
 
 ## 트러블슈팅
