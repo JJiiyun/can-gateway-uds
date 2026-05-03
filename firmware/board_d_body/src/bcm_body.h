@@ -25,6 +25,15 @@ uint8_t  BCM_Body_GetDoorStatus(void);
 uint32_t BCM_Body_GetTxCount(void);
 uint32_t BCM_Body_GetRxCount(void);
 
+/*
+ * IGN override for bench/GUI operation.
+ *   -1 = automatic, use CAN-derived IGN state
+ *    0 = force IGN off / suppress 0x390 transmission
+ *    1 = force IGN on / allow 0x390 transmission
+ */
+void BCM_Body_SetIgnOverride(int8_t override);
+int8_t BCM_Body_GetIgnOverride(void);
+
 #ifdef __cplusplus
 }
 #endif

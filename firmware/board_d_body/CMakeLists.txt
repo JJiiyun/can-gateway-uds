@@ -28,6 +28,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${COMMON_DIR}/cli.c
     ${COMMON_DIR}/uart.c
     ${BOARD_SRC_DIR}/bcm_can.c
+    ${BOARD_SRC_DIR}/bcm_cli.c
     ${BOARD_SRC_DIR}/bcm_input.c
     ${BOARD_SRC_DIR}/bcm_main.c
     ${BOARD_SRC_DIR}/bcm_signal.c

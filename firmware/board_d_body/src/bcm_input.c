@@ -73,6 +73,7 @@ typedef struct {
 } BcmButton_Debounce_t;
 
 static volatile BcmInput_State_t s_state;
+static volatile BcmInput_Mode_t s_mode = BCM_INPUT_MODE_GPIO;
 static BcmButton_Debounce_t s_left_button;
 static BcmButton_Debounce_t s_right_button;
 
@@ -146,12 +147,17 @@ void BCM_Input_Init(void)
     HAL_GPIO_Init(BCM_FOG_LAMP_GPIO_Port, &gpio);
 
     memset((void *)&s_state, 0, sizeof(s_state));
+    s_mode = BCM_INPUT_MODE_GPIO;
     memset(&s_left_button, 0, sizeof(s_left_button));
     memset(&s_right_button, 0, sizeof(s_right_button));
 }
 
 void BCM_Input_Poll(void)
 {
+    if (s_mode != BCM_INPUT_MODE_GPIO) {
+        return;
+    }
+
     BcmInput_State_t state = s_state;
 
     state.door_fl = read_input(BCM_DOOR_FL_GPIO_Port, BCM_DOOR_FL_Pin);
@@ -179,4 +185,97 @@ void BCM_Input_GetState(BcmInput_State_t *out_state)
     if (out_state != NULL) {
         *out_state = s_state;
     }
+}
+
+void BCM_Input_SetState(const BcmInput_State_t *state)
+{
+    if (state != NULL) {
+        s_state = *state;
+    }
+}
+
+void BCM_Input_SetField(BcmInput_Field_t field, uint8_t active)
+{
+    BcmInput_State_t state = s_state;
+    uint8_t value = active ? 1U : 0U;
+
+    switch (field) {
+    case BCM_INPUT_FIELD_DOOR_FL:
+        state.door_fl = value;
+        break;
+    case BCM_INPUT_FIELD_DOOR_FR:
+        state.door_fr = value;
+        break;
+    case BCM_INPUT_FIELD_DOOR_RL:
+        state.door_rl = value;
+        break;
+    case BCM_INPUT_FIELD_DOOR_RR:
+        state.door_rr = value;
+        break;
+    case BCM_INPUT_FIELD_TURN_LEFT:
+        state.turn_left_enabled = value;
+        break;
+    case BCM_INPUT_FIELD_TURN_RIGHT:
+        state.turn_right_enabled = value;
+        break;
+    case BCM_INPUT_FIELD_HIGH_BEAM:
+        state.high_beam = value;
+        break;
+    case BCM_INPUT_FIELD_FOG_LIGHT:
+        state.fog_light = value;
+        break;
+    default:
+        return;
+    }
+
+    s_state = state;
+}
+
+void BCM_Input_SetAllDoors(uint8_t active)
+{
+    BcmInput_State_t state = s_state;
+    uint8_t value = active ? 1U : 0U;
+
+    state.door_fl = value;
+    state.door_fr = value;
+    state.door_rl = value;
+    state.door_rr = value;
+    s_state = state;
+}
+
+void BCM_Input_SetAllLamps(uint8_t active)
+{
+    BcmInput_State_t state = s_state;
+    uint8_t value = active ? 1U : 0U;
+
+    state.turn_left_enabled = value;
+    state.turn_right_enabled = value;
+    state.high_beam = value;
+    state.fog_light = value;
+    s_state = state;
+}
+
+void BCM_Input_ClearAll(void)
+{
+    BcmInput_State_t state;
+
+    memset(&state, 0, sizeof(state));
+    s_state = state;
+}
+
+void BCM_Input_SetMode(BcmInput_Mode_t mode)
+{
+    if (mode == BCM_INPUT_MODE_GPIO || mode == BCM_INPUT_MODE_UART) {
+        s_mode = mode;
+    }
+}
+
+BcmInput_Mode_t BCM_Input_GetMode(void)
+{
+    return s_mode;
+}
+
+const char *BCM_Input_GetModeString(void)
+{
+    return s_mode == BCM_INPUT_MODE_UART ? "uart" : "gpio";
 }
