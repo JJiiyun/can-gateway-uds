@@ -2,19 +2,14 @@
 #include "can_bsp.h"
 #include "can_cli_monitor.h"
 #include "cli.h"
-#include "gateway_body_bridge.h"
-#include "gateway_engine_bridge.h"
+#include "gateway_router.h"
 #include "gateway_safety_bridge.h"
-#include "gateway_uds_server.h"
 #include "uart.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
-extern CAN_HandleTypeDef hcan2;
-
-static volatile uint8_t s_warning_active = 0U;
 static volatile uint8_t s_gateway_ready = 0U;
 static volatile uint8_t s_status_log_enabled = 1U;
 
@@ -70,6 +65,7 @@ void StartDefaultTask(void *argument)
     }
 
     if (CAN_BSP_Init() == HAL_OK) {
+        GatewayRouter_Init();
         GatewaySafetyBridge_Init();
         s_gateway_ready = 1U;
         log_printf("\r\n[GW] Gateway init complete\r\n");
@@ -102,29 +98,8 @@ void GatewayTask(void *argument)
         }
 
         CanCliMonitor_LogRx(&rxMsg);
-        GatewayEngineBridge_OnRx(&rxMsg);
-        GatewayBodyBridge_OnRx(&rxMsg);
+        GatewayRouter_OnRx(&rxMsg);
         GatewaySafetyBridge_OnRx(&rxMsg);
-        GatewayUdsServer_OnRx(&rxMsg);
-
-        if (rxMsg.bus == 1U && rxMsg.id == CAN_ID_ENGINE_DATA) {
-            uint16_t rpm = CAN_GetU16LE(rxMsg.data, CAN_ENGINE_DATA_RPM_IDX);
-            HAL_StatusTypeDef tx_status =
-                CAN_BSP_SendTo(&hcan2, rxMsg.id, rxMsg.data, rxMsg.dlc);
-            CanCliMonitor_LogTx(2U, rxMsg.id, rxMsg.data, rxMsg.dlc, tx_status);
-
-            if (rpm >= 5000U) {
-                s_warning_active = 1U;
-            } else if (rpm < 4500U) {
-                s_warning_active = 0U;
-            }
-
-            if (tx_status != HAL_OK) {
-                log_printf("[GW] CAN2 TX fail id=0x%03lX st=%d\r\n",
-                           (unsigned long)rxMsg.id,
-                           (int)tx_status);
-            }
-        }
     }
 }
 
@@ -137,8 +112,6 @@ void ClusterTask(void *argument)
     }
 
     for (;;) {
-        GatewayEngineBridge_Task10ms();
-        GatewayBodyBridge_Task10ms();
         GatewaySafetyBridge_Task10ms();
         osDelay(10U);
     }
@@ -155,32 +128,33 @@ void LoggerTask(void *argument)
     for (;;) {
         if (s_status_log_enabled != 0U) {
             GatewaySafetyDiagnostic_t safety;
-            GatewayEngineBridge_State_t engine_state = {0};
+            GatewayRouterStats_t router;
 
             GatewaySafetyBridge_GetDiagnostic(&safety);
-            GatewayEngineBridge_GetState(&engine_state);
+            GatewayRouter_GetStats(&router);
 
-            log_printf("[GW] RX1=%lu TX1=%lu RX2=%lu TX2=%lu busy=%lu err=%lu warn=%u "
+            log_printf("[GW] RX1=%lu TX1=%lu RX2=%lu TX2=%lu busy=%lu err=%lu "
+                       "route=%lu ok=%lu fail=%lu ignore=%lu "
                        "adas=%u risk=%u fault=0x%02X dtc=0x%02X "
-                       "rpm=%u speed=%u coolant=%u ign=%u alive=%u active=%u age=%lu\r\n",
+                       "front=%u rear=%u speed=%u alive=%u\r\n",
                        (unsigned long)can1RxCount,
                        (unsigned long)can1TxCount,
                        (unsigned long)can2RxCount,
                        (unsigned long)can2TxCount,
                        (unsigned long)canTxBusyCount,
                        (unsigned long)canTxErrorCount,
-                       (unsigned int)s_warning_active,
+                       (unsigned long)router.matched_count,
+                       (unsigned long)router.tx_ok_count,
+                       (unsigned long)router.tx_fail_count,
+                       (unsigned long)router.ignored_count,
                        (unsigned int)safety.valid,
                        (unsigned int)safety.risk_level,
                        (unsigned int)safety.active_fault_bitmap,
                        (unsigned int)safety.dtc_bitmap,
-                       (unsigned int)engine_state.rpm,
-                       (unsigned int)engine_state.speed_kmh,
-                       (unsigned int)engine_state.coolant_c,
-                       (unsigned int)engine_state.ign_on,
-                       (unsigned int)engine_state.board_a_alive,
-                       (unsigned int)engine_state.active,
-                       (unsigned long)engine_state.age_ms);
+                       (unsigned int)safety.front_distance_cm,
+                       (unsigned int)safety.rear_distance_cm,
+                       (unsigned int)safety.speed_kmh,
+                       (unsigned int)safety.alive);
         }
         osDelay(1000U);
     }

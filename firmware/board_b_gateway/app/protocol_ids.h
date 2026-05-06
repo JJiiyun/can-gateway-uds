@@ -3,40 +3,27 @@
 
 #include <stdint.h>
 
-#define CAN_ID_ENGINE_DATA           0x100U
-#define CAN_ID_DASHBOARD_CTRL        0x200U
 #define CAN_ID_BODY_STATUS           0x390U
 #define CAN_ID_ADAS_STATUS           0x3A0U
 #define CAN_ID_WARNING               0x480U
 
-#define CAN_ID_UDS_REQ_BOARD_B       0x714U
-#define CAN_ID_UDS_RESP_BOARD_B      0x77EU
-#define CAN_ID_UDS_REQ_OBD_STD       0x7E0U
-#define CAN_ID_UDS_RESP_OBD_STD      0x7E8U
+#define CAN_ID_CLUSTER_SPEED_1A0     0x1A0U
+#define CAN_ID_CLUSTER_RPM           0x280U
+#define CAN_ID_CLUSTER_COOLANT       0x288U
+#define CAN_ID_CLUSTER_TURN          0x531U
+#define CAN_ID_CLUSTER_SPEED_5A0     0x5A0U
+#define CAN_ID_CLUSTER_BRIGHTNESS    0x635U
 
-#define UDS_DID_VIN                  0xF190U
-#define UDS_DID_RPM                  0xF40CU
-#define UDS_DID_SPEED                0xF40DU
-#define UDS_DID_TEMP                 0xF40EU
-#define UDS_DID_ADAS_STATUS          0xF410U
-#define UDS_DID_ADAS_FRONT_DISTANCE  0xF411U
-#define UDS_DID_ADAS_REAR_DISTANCE   0xF412U
-#define UDS_DID_ADAS_FAULT_BITMAP    0xF413U
-
-#define CAN_ENGINE_DATA_DLC              8U
+#define CAN_CLUSTER_DLC                  8U
 #define CAN_DLC_BODY_STATUS              8U
 #define CAN_ADAS_STATUS_DLC              8U
 
-#define CAN_ENGINE_DATA_RPM_IDX          0U
-#define CAN_ENGINE_DATA_SPEED_IDX        2U
-#define CAN_ENGINE_DATA_COOLANT_IDX      4U
-#define CAN_ENGINE_DATA_STATUS_IDX       5U
-#define CAN_ENGINE_DATA_RESERVED0_IDX    6U
-#define CAN_ENGINE_DATA_RESERVED1_IDX    7U
-
-#define CAN_ENGINE_STATUS_IGN_MASK       0x01U
-#define CAN_ENGINE_STATUS_ALIVE_SHIFT    1U
-#define CAN_ENGINE_STATUS_ALIVE_MASK     0xFEU
+#define CAN_CLUSTER_RPM_RAW_IDX          2U
+#define CAN_CLUSTER_RPM_SCALE_DIV        4U
+#define CAN_CLUSTER_SPEED_1A0_RAW_IDX    2U
+#define CAN_CLUSTER_SPEED_1A0_SCALE_DIV  160U
+#define CAN_CLUSTER_SPEED_5A0_VALUE_IDX  2U
+#define CAN_CLUSTER_COOLANT_VALUE_IDX    1U
 
 #define CAN_ADAS_STATUS_FLAGS_IDX        0U
 #define CAN_ADAS_STATUS_RISK_LEVEL_IDX   1U
@@ -65,10 +52,5 @@
 #define GOLF6_MO5_HLEUCHTE_BIT           40U
 #define GOLF6_MO5_TDE_LAMPE_BIT          44U
 #define GOLF6_MO5_MOTORTEXT3_BIT         54U
-
-static inline uint16_t CAN_GetU16LE(const uint8_t *buf, uint8_t index)
-{
-    return ((uint16_t)buf[index + 1U] << 8) | buf[index];
-}
 
 #endif
