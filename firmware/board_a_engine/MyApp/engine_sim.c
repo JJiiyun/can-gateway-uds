@@ -4,7 +4,11 @@
  * Period
  * ============================================================ */
 
-#define ENG_PERIOD_ENGINE_DATA_MS       50U
+#define ENG_PERIOD_RPM_TX_MS            50U
+#define ENG_PERIOD_SPEED_1A0_TX_MS      50U
+#define ENG_PERIOD_SPEED_5A0_TX_MS      50U
+#define ENG_PERIOD_COOLANT_TX_MS        100U
+
 #define ENG_PERIOD_MODEL_MS             50U
 #define ENG_PERIOD_COOLANT_MODEL_MS     1000U
 
@@ -15,6 +19,7 @@
 #define ENGINE_RPM_IDLE                 800U
 #define ENGINE_RPM_MAX                  6000U
 #define ENGINE_SPEED_MAX                130U
+#define ENGINE_RPM_WARN_THRESHOLD       5000U
 
 /* ============================================================
  * Coolant Model Config
@@ -22,26 +27,21 @@
 
 #define ENGINE_COOLANT_INIT             70U
 #define ENGINE_COOLANT_MAX              115U
+#define ENGINE_COOLANT_WARN_THRESHOLD   105U
+#define ENGINE_COOLANT_CAN_FIXED_VALUE  90U
 
 /* ============================================================
  * ADC / Pedal Config
  * ============================================================ */
 
 #define ADC_MAX_VALUE                   4095U
-#define ADC_FILTER_SHIFT                3U      // 1/8 low-pass filter
+#define ADC_FILTER_SHIFT                3U
 
 #define THROTTLE_DEADZONE_PERCENT       3U
 #define BRAKE_DEADZONE_PERCENT          8U
 
 #define PEDAL_MAX_CLAMP_PERCENT         97U
 
-/*
- * 실험용 브레이크 민감도.
- * 실제 차처럼 brake가 throttle을 완전히 이기게 하지 않고,
- * brake 입력의 일부만 감속 모델에 반영한다.
- *
- * 35%면 brake=100일 때도 effective_brake=35로 계산됨.
- */
 #define BRAKE_EFFECT_PERCENT            35U
 
 /* ============================================================
@@ -63,6 +63,44 @@ static uint16_t throttle_adc_filtered = 0;
 static uint16_t brake_adc_filtered = 0;
 
 /* ============================================================
+ * Live Debug Variables
+ * ============================================================ */
+
+volatile uint8_t live_dbg_mode = 0;
+volatile uint8_t live_dbg_throttle = 0;
+volatile uint8_t live_dbg_brake = 0;
+volatile uint16_t live_dbg_rpm = ENGINE_RPM_IDLE;
+volatile uint16_t live_dbg_speed = 0;
+volatile uint8_t live_dbg_coolant = ENGINE_COOLANT_INIT;
+volatile uint32_t live_dbg_tx_count = 0;
+
+/* ============================================================
+ * Private Function Prototypes
+ * ============================================================ */
+
+static void EngineSim_UpdateLiveDebug(void);
+
+static uint8_t EngineSim_AdcToPercent(uint16_t adc);
+static uint16_t EngineSim_LowPassAdc(uint16_t filtered, uint16_t raw);
+static uint8_t EngineSim_MapPedalPercent(uint8_t percent, uint8_t deadzone);
+static uint8_t EngineSim_BrakeCurve(uint8_t brake);
+
+static void EngineSim_UpdateInput(void);
+static void EngineSim_UpdatePhysics(void);
+static void EngineSim_UpdateCoolant(void);
+
+static void EngineSim_PutU16LE(uint8_t *data, uint8_t idx, uint16_t value);
+
+static uint16_t EngineSim_EncodeRpmRaw(uint16_t rpm);
+static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed);
+static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed);
+
+static void EngineSim_SendClusterRpm(void);
+static void EngineSim_SendClusterSpeed1A0(void);
+static void EngineSim_SendClusterSpeed5A0(void);
+static void EngineSim_SendClusterCoolant(void);
+
+/* ============================================================
  * Public Functions
  * ============================================================ */
 
@@ -81,6 +119,8 @@ void EngineSim_Init(void)
     adc_filter_init = 0;
     throttle_adc_filtered = 0;
     brake_adc_filtered = 0;
+
+    EngineSim_UpdateLiveDebug();
 }
 
 void EngineSim_Reset(void)
@@ -96,6 +136,8 @@ void EngineSim_Reset(void)
     adc_filter_init = 0;
     throttle_adc_filtered = 0;
     brake_adc_filtered = 0;
+
+    EngineSim_UpdateLiveDebug();
 }
 
 void EngineSim_SetMode(EngineMode_t mode)
@@ -109,6 +151,8 @@ void EngineSim_SetMode(EngineMode_t mode)
     {
         adc_filter_init = 0;
     }
+
+    EngineSim_UpdateLiveDebug();
 }
 
 void EngineSim_SetThrottle(uint8_t throttle)
@@ -117,6 +161,8 @@ void EngineSim_SetThrottle(uint8_t throttle)
         throttle = 100U;
 
     engine.throttle = throttle;
+
+    EngineSim_UpdateLiveDebug();
 }
 
 void EngineSim_SetBrake(uint8_t brake)
@@ -125,6 +171,8 @@ void EngineSim_SetBrake(uint8_t brake)
         brake = 100U;
 
     engine.brake = brake;
+
+    EngineSim_UpdateLiveDebug();
 }
 
 void EngineSim_GetStatus(EngineSimStatus_t *status)
@@ -159,6 +207,17 @@ const char *EngineSim_GetModeString(EngineMode_t mode)
 /* ============================================================
  * Private Functions
  * ============================================================ */
+
+static void EngineSim_UpdateLiveDebug(void)
+{
+    live_dbg_mode = (uint8_t)engine.mode;
+    live_dbg_throttle = engine.throttle;
+    live_dbg_brake = engine.brake;
+    live_dbg_rpm = engine.rpm;
+    live_dbg_speed = engine.speed;
+    live_dbg_coolant = engine.coolant;
+    live_dbg_tx_count = engine.tx_count;
+}
 
 static uint8_t EngineSim_AdcToPercent(uint16_t adc)
 {
@@ -196,15 +255,6 @@ static uint8_t EngineSim_MapPedalPercent(uint8_t percent, uint8_t deadzone)
 
 static uint8_t EngineSim_BrakeCurve(uint8_t brake)
 {
-    /*
-     * brake를 곡선형으로 변환.
-     *
-     * brake 10  -> 1
-     * brake 30  -> 9
-     * brake 50  -> 25
-     * brake 80  -> 64
-     * brake 100 -> 100
-     */
     return (uint8_t)(((uint32_t)brake * brake) / 100U);
 }
 
@@ -233,10 +283,6 @@ static void EngineSim_UpdateInput(void)
     uint8_t throttle_raw = EngineSim_AdcToPercent(throttle_adc_filtered);
     uint8_t brake_raw = EngineSim_AdcToPercent(brake_adc_filtered);
 
-    /*
-     * 가변저항은 실제 페달처럼 정확히 0/100에 잘 안 붙기 때문에
-     * deadzone과 max clamp를 적용한다.
-     */
     engine.throttle = EngineSim_MapPedalPercent(throttle_raw, THROTTLE_DEADZONE_PERCENT);
     engine.brake = EngineSim_MapPedalPercent(brake_raw, BRAKE_DEADZONE_PERCENT);
 }
@@ -245,23 +291,8 @@ static void EngineSim_UpdatePhysics(void)
 {
     int16_t speed = (int16_t)engine.speed;
 
-    /*
-     * brake는 입력값 그대로 쓰지 않고 곡선형으로 변환한다.
-     *
-     * 이유:
-     * - 살짝 들어온 brake는 노이즈/약한 제동으로 취급
-     * - 강하게 들어온 brake는 throttle을 확실히 이김
-     * - brake 100이면 throttle 100이어도 target_speed = 0
-     */
     uint8_t brake_effect = EngineSim_BrakeCurve(engine.brake);
 
-    /*
-     * brake가 throttle을 점진적으로 깎는 구조.
-     *
-     * brake_effect = 0   -> throttle 그대로
-     * brake_effect = 50  -> throttle 절반만 유효
-     * brake_effect = 100 -> throttle 완전 무효
-     */
     int16_t effective_throttle =
         ((int16_t)engine.throttle * (100 - brake_effect)) / 100;
 
@@ -274,26 +305,15 @@ static void EngineSim_UpdatePhysics(void)
     int16_t target_speed =
         (effective_throttle * (int16_t)ENGINE_SPEED_MAX) / 100;
 
-    /*
-     * 가속:
-     * throttle이 클수록 목표 속도까지 더 빠르게 접근.
-     */
     if (speed < target_speed)
     {
         speed += 1 + (engine.throttle / 30U);
     }
-    /*
-     * 감속:
-     * brake_effect가 클수록 강하게 감속.
-     */
     else if (speed > target_speed)
     {
         speed -= 1 + (brake_effect / 18U);
     }
 
-    /*
-     * 페달 둘 다 놓았을 때 자연 감속.
-     */
     if (engine.throttle == 0U && engine.brake == 0U)
     {
         if (speed > 0)
@@ -308,13 +328,6 @@ static void EngineSim_UpdatePhysics(void)
 
     engine.speed = (uint16_t)speed;
 
-    /*
-     * speed 0   -> 800 rpm
-     * speed 130 -> 6000 rpm
-     *
-     * throttle 100%, brake 0이면 최종적으로 speed 130에 도달하고
-     * rpm은 정확히 6000까지 올라간다.
-     */
     engine.rpm =
         ENGINE_RPM_IDLE +
         ((uint32_t)engine.speed * (ENGINE_RPM_MAX - ENGINE_RPM_IDLE)) /
@@ -331,18 +344,6 @@ static void EngineSim_UpdateCoolant(void)
 {
     uint8_t target_coolant;
 
-    /*
-     * 냉각수 온도 모델
-     *
-     * 실제 냉각수는 RPM처럼 즉시 오르내리지 않음.
-     * 그래서 목표 온도만 rpm/throttle 기준으로 잡고,
-     * 실제 coolant 값은 1초마다 1도씩 천천히 따라가게 만든다.
-     *
-     * 대략적인 의미:
-     * - 초기/저부하: 70~85도
-     * - 일반 주행: 90도 근처
-     * - 고RPM/고부하: 100~110도 근처
-     */
     if (engine.rpm < 1500U)
     {
         target_coolant = 85U;
@@ -380,34 +381,133 @@ static void EngineSim_UpdateCoolant(void)
     }
 }
 
-static void EngineSim_SendEngineData(void)
+/* ============================================================
+ * CAN Encoding Helpers
+ * ============================================================ */
+
+static void EngineSim_PutU16LE(uint8_t *data, uint8_t idx, uint16_t value)
 {
-    static uint8_t alive = 0;
-    uint8_t data[CAN_ENGINE_DATA_DLC] = {0};
+    data[idx] = (uint8_t)(value & 0xFFU);
+    data[idx + 1U] = (uint8_t)((value >> 8) & 0xFFU);
+}
 
-    CAN_PutU16LE(data, CAN_ENGINE_DATA_RPM_IDX, engine.rpm);
-    CAN_PutU16LE(data, CAN_ENGINE_DATA_SPEED_IDX, engine.speed);
-
-    data[CAN_ENGINE_DATA_COOLANT_IDX] = engine.coolant;
-
+static uint16_t EngineSim_EncodeRpmRaw(uint16_t rpm)
+{
     /*
-     * byte5 Status
+     * 0x280
+     * byte[2]~byte[3] : RPM raw
      *
-     * bit0   : IGN ON
-     * bit1~7 : Alive Counter
+     * 일반적으로 VW 계열에서 RPM raw = rpm * 4 형태가 자주 쓰임.
+     * 예: 800rpm  -> 3200  -> 0x0C80
+     *     6000rpm -> 24000 -> 0x5DC0
      */
-    data[CAN_ENGINE_DATA_STATUS_IDX] =
-        ((alive << CAN_ENGINE_STATUS_ALIVE_SHIFT) & CAN_ENGINE_STATUS_ALIVE_MASK)
-        | CAN_ENGINE_STATUS_IGN_MASK;
+    return (uint16_t)(rpm * 4U);
+}
 
-    data[CAN_ENGINE_DATA_RESERVED0_IDX] = 0U;
-    data[CAN_ENGINE_DATA_RESERVED1_IDX] = 0U;
+static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed)
+{
+    /*
+     * 0x1A0
+     * 예시 프레임:
+     * 08 00 20 4E 00 00 00 00
+     *
+     * byte[2]~byte[3] = 0x4E20 = 20000
+     * 20000 / 160 = 125km/h
+     *
+     * 따라서 우선 speed * 160으로 둠.
+     */
+    return (uint16_t)(speed * 160U);
+}
 
-    alive++;
+static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed)
+{
+    /*
+     * 0x5A0
+     * byte[2] : 속도계 바늘 값
+     *
+     * 현재 speed가 0~130 범위라서 그대로 넣음.
+     */
+    if (speed > 255U)
+        speed = 255U;
 
-    HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_ENGINE_DATA,
+    return (uint8_t)speed;
+}
+
+/* ============================================================
+ * CAN TX Functions
+ * ============================================================ */
+
+static void EngineSim_SendClusterRpm(void)
+{
+    uint8_t data[CAN_CLUSTER_DLC] = {
+        0x00, 0x00, 0x15, 0x15, 0x00, 0x00, 0x00, 0x00
+    };
+
+    uint16_t rpm_raw = EngineSim_EncodeRpmRaw(engine.rpm);
+
+    EngineSim_PutU16LE(data, CAN_RPM_RAW_L_IDX, rpm_raw);
+
+    HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_RPM,
                                          data,
-                                         CAN_ENGINE_DATA_DLC);
+                                         CAN_CLUSTER_DLC);
+
+    if (ret == HAL_OK)
+    {
+        engine.tx_count++;
+    }
+}
+
+static void EngineSim_SendClusterSpeed1A0(void)
+{
+    uint8_t data[CAN_CLUSTER_DLC] = {
+        0x08, 0x00, 0x20, 0x4E, 0x00, 0x00, 0x00, 0x00
+    };
+
+    uint16_t speed_raw = EngineSim_EncodeSpeed1A0Raw(engine.speed);
+
+    data[0] = CAN_SPEED_1A0_FIXED_B0;
+
+    EngineSim_PutU16LE(data, CAN_SPEED_1A0_RAW_L_IDX, speed_raw);
+
+    HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_SPEED_1A0,
+                                         data,
+                                         CAN_CLUSTER_DLC);
+
+    if (ret == HAL_OK)
+    {
+        engine.tx_count++;
+    }
+}
+
+static void EngineSim_SendClusterSpeed5A0(void)
+{
+    uint8_t data[CAN_CLUSTER_DLC] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+
+    data[CAN_SPEED_5A0_VALUE_IDX] = EngineSim_EncodeSpeed5A0Value(engine.speed);
+
+    HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_SPEED_5A0,
+                                         data,
+                                         CAN_CLUSTER_DLC);
+
+    if (ret == HAL_OK)
+    {
+        engine.tx_count++;
+    }
+}
+
+static void EngineSim_SendClusterCoolant(void)
+{
+    uint8_t data[CAN_CLUSTER_DLC] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+
+    data[CAN_COOLANT_VALUE_IDX] = ENGINE_COOLANT_CAN_FIXED_VALUE;
+
+    HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_COOLANT,
+                                         data,
+                                         CAN_CLUSTER_DLC);
 
     if (ret == HAL_OK)
     {
@@ -425,9 +525,13 @@ void EngineSim_Task(void *argument)
 
     uint32_t now = osKernelGetTickCount();
 
-    uint32_t t_engine = now - ENG_PERIOD_ENGINE_DATA_MS;
+    uint32_t t_rpm_tx = now - ENG_PERIOD_RPM_TX_MS;
+    uint32_t t_speed_1a0_tx = now - (ENG_PERIOD_SPEED_1A0_TX_MS - 5U);
+    uint32_t t_speed_5a0_tx = now - (ENG_PERIOD_SPEED_5A0_TX_MS - 10U);
+    uint32_t t_coolant_tx = now - (ENG_PERIOD_COOLANT_TX_MS - 15U);
+
     uint32_t t_model = now - ENG_PERIOD_MODEL_MS;
-    uint32_t t_coolant = now - ENG_PERIOD_COOLANT_MODEL_MS;
+    uint32_t t_coolant_model = now - ENG_PERIOD_COOLANT_MODEL_MS;
 
     for (;;)
     {
@@ -441,17 +545,37 @@ void EngineSim_Task(void *argument)
             t_model = now;
         }
 
-        if ((now - t_coolant) >= ENG_PERIOD_COOLANT_MODEL_MS)
+        if ((now - t_coolant_model) >= ENG_PERIOD_COOLANT_MODEL_MS)
         {
             EngineSim_UpdateCoolant();
-            t_coolant = now;
+            t_coolant_model = now;
         }
 
-        if ((now - t_engine) >= ENG_PERIOD_ENGINE_DATA_MS)
+        if ((now - t_rpm_tx) >= ENG_PERIOD_RPM_TX_MS)
         {
-            EngineSim_SendEngineData();
-            t_engine = now;
+            EngineSim_SendClusterRpm();
+            t_rpm_tx = now;
         }
+
+        if ((now - t_speed_1a0_tx) >= ENG_PERIOD_SPEED_1A0_TX_MS)
+        {
+            EngineSim_SendClusterSpeed1A0();
+            t_speed_1a0_tx = now;
+        }
+
+        if ((now - t_speed_5a0_tx) >= ENG_PERIOD_SPEED_5A0_TX_MS)
+        {
+            EngineSim_SendClusterSpeed5A0();
+            t_speed_5a0_tx = now;
+        }
+
+        if ((now - t_coolant_tx) >= ENG_PERIOD_COOLANT_TX_MS)
+        {
+            EngineSim_SendClusterCoolant();
+            t_coolant_tx = now;
+        }
+
+        EngineSim_UpdateLiveDebug();
 
         osDelay(5);
     }
