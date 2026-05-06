@@ -8,6 +8,7 @@
 #include "can_bsp.h"
 #include "can.h"
 #include "protocol_ids.h"
+#include "signal_db.h"
 #include "uart.h"
 #include <string.h>
 
@@ -22,6 +23,26 @@ extern CAN_HandleTypeDef hcan1;
 #define GOLF6_CAN_ID_ZAS_1           0x572U
 #define GOLF6_KLEMME_15_BIT          1U
 
+#ifndef CAN_ID_CLUSTER_RPM
+#define CAN_ID_CLUSTER_RPM           SIGNAL_DB_CAN_ID_MOTOR_1
+#endif
+
+#ifndef CAN_ID_CLUSTER_SPEED_1A0
+#define CAN_ID_CLUSTER_SPEED_1A0     SIGNAL_DB_CAN_ID_BREMSE_1
+#endif
+
+#ifndef CAN_ID_CLUSTER_COOLANT
+#define CAN_ID_CLUSTER_COOLANT       SIGNAL_DB_CAN_ID_MOTOR_2
+#endif
+
+#ifndef CAN_ID_CLUSTER_SPEED_5A0
+#define CAN_ID_CLUSTER_SPEED_5A0     0x5A0U
+#endif
+
+#ifndef CAN_CLUSTER_DLC
+#define CAN_CLUSTER_DLC              8U
+#endif
+
 static volatile uint8_t s_ign_on;
 static volatile uint8_t s_ign_frame_valid;
 static volatile uint32_t s_last_ign_rx_tick;
@@ -32,8 +53,41 @@ static uint8_t get_bit(const uint8_t *data, uint8_t bit)
     return (data[bit / 8U] & (uint8_t)(1U << (bit % 8U))) != 0U;
 }
 
+static uint8_t is_turn_tx_id(uint32_t id)
+{
+    return id == CAN_ID_CLUSTER_TURN_STATUS;
+}
+
+static uint8_t is_board_a_cluster_frame(const CAN_Msg_t *msg, const char **source)
+{
+    if (msg->dlc != CAN_CLUSTER_DLC) {
+        return 0U;
+    }
+
+    switch (msg->id) {
+    case CAN_ID_CLUSTER_RPM:
+        *source = "CLUSTER_RPM";
+        return 1U;
+    case CAN_ID_CLUSTER_SPEED_1A0:
+        *source = "CLUSTER_SPEED_1A0";
+        return 1U;
+    case CAN_ID_CLUSTER_SPEED_5A0:
+        *source = "CLUSTER_SPEED_5A0";
+        return 1U;
+    case CAN_ID_CLUSTER_COOLANT:
+        *source = "CLUSTER_COOLANT";
+        return 1U;
+    default:
+        return 0U;
+    }
+}
+
 static uint8_t decode_ign_on(const CAN_Msg_t *msg, const char **source)
 {
+    if (is_board_a_cluster_frame(msg, source)) {
+        return 1U;
+    }
+
     if (msg->id == CAN_ID_ENGINE_DATA && msg->dlc == CAN_ENGINE_DATA_DLC) {
         *source = "ENGINE_DATA";
         return VW300_GET_IGN_ON(msg->data) ? 1U : 0U;
@@ -65,13 +119,13 @@ int BCM_Can_Init(void)
     return 0;
 }
 
-int BCM_Can_SendBodyStatus(const CAN_Msg_t *msg)
+int BCM_Can_SendTurnStatus(const CAN_Msg_t *msg)
 {
     HAL_StatusTypeDef tx_status;
 
     if (msg == NULL ||
-        msg->id != BCM_GOLF6_CAN_ID_MGATE_KOMF_1 ||
-        msg->dlc != BCM_GOLF6_MGATE_KOMF_1_DLC) {
+        !is_turn_tx_id(msg->id) ||
+        msg->dlc != CAN_CLUSTER_FRAME_DLC) {
         s_stats.tx_error_count++;
         uartPrintf(0, "[BCM] TX REJECT id=0x%03lX dlc=%u err=%lu\r\n",
                    msg != NULL ? (unsigned long)msg->id : 0UL,

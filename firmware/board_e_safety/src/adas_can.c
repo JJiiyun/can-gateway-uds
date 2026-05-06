@@ -11,12 +11,55 @@ extern CAN_HandleTypeDef hcan1;
 
 #define ADAS_ENGINE_TIMEOUT_MS 500U
 
+#ifndef CAN_ID_CLUSTER_SPEED_1A0
+#define CAN_ID_CLUSTER_SPEED_1A0        0x1A0U
+#endif
+
+#ifndef CAN_ID_CLUSTER_SPEED_5A0
+#define CAN_ID_CLUSTER_SPEED_5A0        0x5A0U
+#endif
+
+#ifndef CAN_CLUSTER_DLC
+#define CAN_CLUSTER_DLC                 8U
+#endif
+
+#ifndef CAN_CLUSTER_SPEED_1A0_RAW_IDX
+#define CAN_CLUSTER_SPEED_1A0_RAW_IDX   2U
+#endif
+
+#ifndef CAN_CLUSTER_SPEED_1A0_SCALE_DIV
+#define CAN_CLUSTER_SPEED_1A0_SCALE_DIV 160U
+#endif
+
+#ifndef CAN_CLUSTER_SPEED_5A0_VALUE_IDX
+#define CAN_CLUSTER_SPEED_5A0_VALUE_IDX 2U
+#endif
+
 static volatile AdasCanStats_t s_stats;
 static volatile uint32_t s_last_engine_rx_tick;
 
 static uint8_t engine_frame_is_ign_on(const CAN_RxMessage_t *rx)
 {
     return (rx->data[CAN_ENGINE_DATA_STATUS_IDX] & CAN_ENGINE_STATUS_IGN_MASK) != 0U;
+}
+
+static uint16_t decode_cluster_speed_1a0(const CAN_RxMessage_t *rx)
+{
+    uint16_t raw = CAN_GetU16LE(rx->data, CAN_CLUSTER_SPEED_1A0_RAW_IDX);
+
+    return (uint16_t)(raw / CAN_CLUSTER_SPEED_1A0_SCALE_DIV);
+}
+
+static uint16_t decode_cluster_speed_5a0(const CAN_RxMessage_t *rx)
+{
+    return rx->data[CAN_CLUSTER_SPEED_5A0_VALUE_IDX];
+}
+
+static void update_vehicle_speed(uint16_t speed_kmh)
+{
+    s_stats.speed_kmh = speed_kmh;
+    s_stats.engine_active = 1U;
+    s_last_engine_rx_tick = HAL_GetTick();
 }
 
 int ADAS_Can_Init(void)
@@ -43,13 +86,26 @@ void ADAS_Can_PollRx(uint32_t timeout_ms)
 
     s_stats.rx_count++;
 
-    if (rx.bus == 1U &&
-        rx.id == CAN_ID_ENGINE_DATA &&
+    if (rx.bus != 1U) {
+        return;
+    }
+
+    if (rx.id == CAN_ID_CLUSTER_SPEED_1A0 &&
+        rx.dlc >= CAN_CLUSTER_DLC) {
+        update_vehicle_speed(decode_cluster_speed_1a0(&rx));
+        return;
+    }
+
+    if (rx.id == CAN_ID_CLUSTER_SPEED_5A0 &&
+        rx.dlc >= CAN_CLUSTER_DLC) {
+        update_vehicle_speed(decode_cluster_speed_5a0(&rx));
+        return;
+    }
+
+    if (rx.id == CAN_ID_ENGINE_DATA &&
         rx.dlc >= CAN_ENGINE_DATA_DLC &&
         engine_frame_is_ign_on(&rx)) {
-        s_stats.speed_kmh = CAN_GetU16LE(rx.data, CAN_ENGINE_DATA_SPEED_IDX);
-        s_stats.engine_active = 1U;
-        s_last_engine_rx_tick = HAL_GetTick();
+        update_vehicle_speed(CAN_GetU16LE(rx.data, CAN_ENGINE_DATA_SPEED_IDX));
     }
 }
 
@@ -60,6 +116,7 @@ uint16_t ADAS_Can_GetVehicleSpeedKmh(void)
     }
 
     if ((uint32_t)(HAL_GetTick() - s_last_engine_rx_tick) > ADAS_ENGINE_TIMEOUT_MS) {
+        s_stats.engine_active = 0U;
         return 0U;
     }
 

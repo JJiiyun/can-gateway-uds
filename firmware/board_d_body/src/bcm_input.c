@@ -1,6 +1,6 @@
 /**
  * @file    bcm_input.c
- * @brief   BCM DIP switch and button input handling.
+ * @brief   BCM turn-signal button input handling.
  */
 
 #include "bcm_input.h"
@@ -12,41 +12,13 @@
 #define BCM_INPUT_ACTIVE_STATE GPIO_PIN_RESET
 #endif
 
-#if !defined(BCM_DOOR_FL_GPIO_Port) && (defined(STM32F103xB) || defined(STM32F103RB))
-#define BCM_DOOR_FL_GPIO_Port      GPIOB
-#define BCM_DOOR_FL_Pin            GPIO_PIN_0
-#define BCM_DOOR_FR_GPIO_Port      GPIOB
-#define BCM_DOOR_FR_Pin            GPIO_PIN_1
-#define BCM_DOOR_RL_GPIO_Port      GPIOB
-#define BCM_DOOR_RL_Pin            GPIO_PIN_2
-#define BCM_DOOR_RR_GPIO_Port      GPIOB
-#define BCM_DOOR_RR_Pin            GPIO_PIN_10
+#if !defined(BCM_TURN_LEFT_GPIO_Port) && (defined(STM32F103xB) || defined(STM32F103RB))
 #define BCM_TURN_LEFT_GPIO_Port    GPIOB
 #define BCM_TURN_LEFT_Pin          GPIO_PIN_11
 #define BCM_TURN_RIGHT_GPIO_Port   GPIOB
 #define BCM_TURN_RIGHT_Pin         GPIO_PIN_12
-#define BCM_HIGH_BEAM_GPIO_Port    GPIOB
-#define BCM_HIGH_BEAM_Pin          GPIO_PIN_13
-#define BCM_FOG_LAMP_GPIO_Port     GPIOB
-#define BCM_FOG_LAMP_Pin           GPIO_PIN_14
 #endif
 
-#ifndef BCM_DOOR_FL_GPIO_Port
-#define BCM_DOOR_FL_GPIO_Port      GPIOE
-#define BCM_DOOR_FL_Pin            GPIO_PIN_2
-#endif
-#ifndef BCM_DOOR_FR_GPIO_Port
-#define BCM_DOOR_FR_GPIO_Port      GPIOE
-#define BCM_DOOR_FR_Pin            GPIO_PIN_3
-#endif
-#ifndef BCM_DOOR_RL_GPIO_Port
-#define BCM_DOOR_RL_GPIO_Port      GPIOE
-#define BCM_DOOR_RL_Pin            GPIO_PIN_4
-#endif
-#ifndef BCM_DOOR_RR_GPIO_Port
-#define BCM_DOOR_RR_GPIO_Port      GPIOE
-#define BCM_DOOR_RR_Pin            GPIO_PIN_5
-#endif
 #ifndef BCM_TURN_LEFT_GPIO_Port
 #define BCM_TURN_LEFT_GPIO_Port    GPIOE
 #define BCM_TURN_LEFT_Pin          GPIO_PIN_6
@@ -54,14 +26,6 @@
 #ifndef BCM_TURN_RIGHT_GPIO_Port
 #define BCM_TURN_RIGHT_GPIO_Port   GPIOF
 #define BCM_TURN_RIGHT_Pin         GPIO_PIN_6
-#endif
-#ifndef BCM_HIGH_BEAM_GPIO_Port
-#define BCM_HIGH_BEAM_GPIO_Port    GPIOF
-#define BCM_HIGH_BEAM_Pin          GPIO_PIN_7
-#endif
-#ifndef BCM_FOG_LAMP_GPIO_Port
-#define BCM_FOG_LAMP_GPIO_Port     GPIOF
-#define BCM_FOG_LAMP_Pin           GPIO_PIN_8
 #endif
 
 #define BCM_BUTTON_DEBOUNCE_SAMPLES 2U
@@ -129,22 +93,10 @@ void BCM_Input_Init(void)
     gpio.Pull = GPIO_PULLUP;
     gpio.Speed = GPIO_SPEED_FREQ_LOW;
 
-    gpio.Pin = BCM_DOOR_FL_Pin;
-    HAL_GPIO_Init(BCM_DOOR_FL_GPIO_Port, &gpio);
-    gpio.Pin = BCM_DOOR_FR_Pin;
-    HAL_GPIO_Init(BCM_DOOR_FR_GPIO_Port, &gpio);
-    gpio.Pin = BCM_DOOR_RL_Pin;
-    HAL_GPIO_Init(BCM_DOOR_RL_GPIO_Port, &gpio);
-    gpio.Pin = BCM_DOOR_RR_Pin;
-    HAL_GPIO_Init(BCM_DOOR_RR_GPIO_Port, &gpio);
     gpio.Pin = BCM_TURN_LEFT_Pin;
     HAL_GPIO_Init(BCM_TURN_LEFT_GPIO_Port, &gpio);
     gpio.Pin = BCM_TURN_RIGHT_Pin;
     HAL_GPIO_Init(BCM_TURN_RIGHT_GPIO_Port, &gpio);
-    gpio.Pin = BCM_HIGH_BEAM_Pin;
-    HAL_GPIO_Init(BCM_HIGH_BEAM_GPIO_Port, &gpio);
-    gpio.Pin = BCM_FOG_LAMP_Pin;
-    HAL_GPIO_Init(BCM_FOG_LAMP_GPIO_Port, &gpio);
 
     memset((void *)&s_state, 0, sizeof(s_state));
     s_mode = BCM_INPUT_MODE_GPIO;
@@ -159,13 +111,6 @@ void BCM_Input_Poll(void)
     }
 
     BcmInput_State_t state = s_state;
-
-    state.door_fl = read_input(BCM_DOOR_FL_GPIO_Port, BCM_DOOR_FL_Pin);
-    state.door_fr = read_input(BCM_DOOR_FR_GPIO_Port, BCM_DOOR_FR_Pin);
-    state.door_rl = read_input(BCM_DOOR_RL_GPIO_Port, BCM_DOOR_RL_Pin);
-    state.door_rr = read_input(BCM_DOOR_RR_GPIO_Port, BCM_DOOR_RR_Pin);
-    state.high_beam = read_input(BCM_HIGH_BEAM_GPIO_Port, BCM_HIGH_BEAM_Pin);
-    state.fog_light = read_input(BCM_FOG_LAMP_GPIO_Port, BCM_FOG_LAMP_Pin);
 
     if (debounce_pressed(&s_left_button,
                          read_input(BCM_TURN_LEFT_GPIO_Port, BCM_TURN_LEFT_Pin))) {
@@ -200,58 +145,16 @@ void BCM_Input_SetField(BcmInput_Field_t field, uint8_t active)
     uint8_t value = active ? 1U : 0U;
 
     switch (field) {
-    case BCM_INPUT_FIELD_DOOR_FL:
-        state.door_fl = value;
-        break;
-    case BCM_INPUT_FIELD_DOOR_FR:
-        state.door_fr = value;
-        break;
-    case BCM_INPUT_FIELD_DOOR_RL:
-        state.door_rl = value;
-        break;
-    case BCM_INPUT_FIELD_DOOR_RR:
-        state.door_rr = value;
-        break;
     case BCM_INPUT_FIELD_TURN_LEFT:
         state.turn_left_enabled = value;
         break;
     case BCM_INPUT_FIELD_TURN_RIGHT:
         state.turn_right_enabled = value;
         break;
-    case BCM_INPUT_FIELD_HIGH_BEAM:
-        state.high_beam = value;
-        break;
-    case BCM_INPUT_FIELD_FOG_LIGHT:
-        state.fog_light = value;
-        break;
     default:
         return;
     }
 
-    s_state = state;
-}
-
-void BCM_Input_SetAllDoors(uint8_t active)
-{
-    BcmInput_State_t state = s_state;
-    uint8_t value = active ? 1U : 0U;
-
-    state.door_fl = value;
-    state.door_fr = value;
-    state.door_rl = value;
-    state.door_rr = value;
-    s_state = state;
-}
-
-void BCM_Input_SetAllLamps(uint8_t active)
-{
-    BcmInput_State_t state = s_state;
-    uint8_t value = active ? 1U : 0U;
-
-    state.turn_left_enabled = value;
-    state.turn_right_enabled = value;
-    state.high_beam = value;
-    state.fog_light = value;
     s_state = state;
 }
 

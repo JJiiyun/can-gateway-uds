@@ -1,142 +1,213 @@
 #include "adas_input.h"
 
-#include "adc.h"
 #include "main.h"
 
 #include <string.h>
 
-extern ADC_HandleTypeDef hadc1;
+#define ADAS_DISTANCE_MIN_CM 5U
+#define ADAS_DISTANCE_MAX_CM 250U
 
-#ifndef ADAS_FRONT_ADC_CHANNEL
-#define ADAS_FRONT_ADC_CHANNEL ADC_CHANNEL_0
+#ifndef ADAS_HCSR04_FRONT_TRIG_GPIO_Port
+#define ADAS_HCSR04_FRONT_TRIG_GPIO_Port GPIOE
+#define ADAS_HCSR04_FRONT_TRIG_Pin       GPIO_PIN_2
 #endif
 
-#ifndef ADAS_REAR_ADC_CHANNEL
-#define ADAS_REAR_ADC_CHANNEL ADC_CHANNEL_3
+#ifndef ADAS_HCSR04_FRONT_ECHO_GPIO_Port
+#define ADAS_HCSR04_FRONT_ECHO_GPIO_Port GPIOE
+#define ADAS_HCSR04_FRONT_ECHO_Pin       GPIO_PIN_3
 #endif
 
-#ifndef ADAS_FRONT_ADC_GPIO_Port
-#define ADAS_FRONT_ADC_GPIO_Port GPIOA
-#define ADAS_FRONT_ADC_Pin       GPIO_PIN_0
+#ifndef ADAS_HCSR04_REAR_TRIG_GPIO_Port
+#define ADAS_HCSR04_REAR_TRIG_GPIO_Port  GPIOE
+#define ADAS_HCSR04_REAR_TRIG_Pin        GPIO_PIN_4
 #endif
 
-#ifndef ADAS_REAR_ADC_GPIO_Port
-#define ADAS_REAR_ADC_GPIO_Port  GPIOA
-#define ADAS_REAR_ADC_Pin        GPIO_PIN_3
+#ifndef ADAS_HCSR04_REAR_ECHO_GPIO_Port
+#define ADAS_HCSR04_REAR_ECHO_GPIO_Port  GPIOE
+#define ADAS_HCSR04_REAR_ECHO_Pin        GPIO_PIN_5
 #endif
 
-#ifndef ADAS_LANE_GPIO_Port
-#define ADAS_LANE_GPIO_Port      GPIOE
-#define ADAS_LANE_Pin            GPIO_PIN_6
+#ifndef ADAS_HCSR04_ECHO_START_TIMEOUT_US
+#define ADAS_HCSR04_ECHO_START_TIMEOUT_US 3000U
 #endif
 
-#ifndef ADAS_BRAKE_GPIO_Port
-#define ADAS_BRAKE_GPIO_Port     GPIOF
-#define ADAS_BRAKE_Pin           GPIO_PIN_6
+#ifndef ADAS_HCSR04_ECHO_TIMEOUT_US
+#define ADAS_HCSR04_ECHO_TIMEOUT_US       16000U
 #endif
 
-#ifndef ADAS_SENSOR_FAULT_GPIO_Port
-#define ADAS_SENSOR_FAULT_GPIO_Port GPIOF
-#define ADAS_SENSOR_FAULT_Pin       GPIO_PIN_7
-#endif
+typedef struct {
+    GPIO_TypeDef *trig_port;
+    uint16_t trig_pin;
+    GPIO_TypeDef *echo_port;
+    uint16_t echo_pin;
+} Hcsr04Sensor_t;
 
-#ifndef ADAS_INPUT_ACTIVE_STATE
-#define ADAS_INPUT_ACTIVE_STATE GPIO_PIN_RESET
-#endif
+static const Hcsr04Sensor_t s_front_sensor = {
+    ADAS_HCSR04_FRONT_TRIG_GPIO_Port,
+    ADAS_HCSR04_FRONT_TRIG_Pin,
+    ADAS_HCSR04_FRONT_ECHO_GPIO_Port,
+    ADAS_HCSR04_FRONT_ECHO_Pin,
+};
 
-#ifndef ADAS_ADC_DISTANCE_CLOSE_IS_HIGH
-#define ADAS_ADC_DISTANCE_CLOSE_IS_HIGH 1
-#endif
-
-#define ADAS_ADC_MAX_VALUE       4095U
-#define ADAS_DISTANCE_MIN_CM     5U
-#define ADAS_DISTANCE_MAX_CM     250U
+static const Hcsr04Sensor_t s_rear_sensor = {
+    ADAS_HCSR04_REAR_TRIG_GPIO_Port,
+    ADAS_HCSR04_REAR_TRIG_Pin,
+    ADAS_HCSR04_REAR_ECHO_GPIO_Port,
+    ADAS_HCSR04_REAR_ECHO_Pin,
+};
 
 static volatile AdasInputState_t s_state;
 
-static uint8_t read_button(GPIO_TypeDef *port, uint16_t pin)
+static void enable_gpio_clock(GPIO_TypeDef *port)
 {
-    return HAL_GPIO_ReadPin(port, pin) == ADAS_INPUT_ACTIVE_STATE ? 1U : 0U;
-}
-
-static uint16_t read_adc_channel(uint32_t channel)
-{
-    ADC_ChannelConfTypeDef config = {0};
-
-    config.Channel = channel;
-    config.Rank = 1U;
-    config.SamplingTime = ADC_SAMPLETIME_15CYCLES;
-
-    if (HAL_ADC_ConfigChannel(&hadc1, &config) != HAL_OK) {
-        return 0U;
+    if (port == GPIOA) {
+        __HAL_RCC_GPIOA_CLK_ENABLE();
+    } else if (port == GPIOB) {
+        __HAL_RCC_GPIOB_CLK_ENABLE();
+    } else if (port == GPIOC) {
+        __HAL_RCC_GPIOC_CLK_ENABLE();
+    } else if (port == GPIOD) {
+        __HAL_RCC_GPIOD_CLK_ENABLE();
+    } else if (port == GPIOE) {
+        __HAL_RCC_GPIOE_CLK_ENABLE();
+    } else if (port == GPIOF) {
+        __HAL_RCC_GPIOF_CLK_ENABLE();
+    } else if (port == GPIOG) {
+        __HAL_RCC_GPIOG_CLK_ENABLE();
+    } else if (port == GPIOH) {
+        __HAL_RCC_GPIOH_CLK_ENABLE();
     }
-
-    if (HAL_ADC_Start(&hadc1) != HAL_OK) {
-        return 0U;
+#ifdef GPIOI
+    else if (port == GPIOI) {
+        __HAL_RCC_GPIOI_CLK_ENABLE();
     }
-
-    if (HAL_ADC_PollForConversion(&hadc1, 10U) != HAL_OK) {
-        (void)HAL_ADC_Stop(&hadc1);
-        return 0U;
-    }
-
-    uint16_t value = (uint16_t)HAL_ADC_GetValue(&hadc1);
-    (void)HAL_ADC_Stop(&hadc1);
-    return value;
-}
-
-static uint8_t adc_to_distance_cm(uint16_t adc)
-{
-    uint32_t span = ADAS_DISTANCE_MAX_CM - ADAS_DISTANCE_MIN_CM;
-    uint32_t scaled;
-
-    if (adc > ADAS_ADC_MAX_VALUE) {
-        adc = ADAS_ADC_MAX_VALUE;
-    }
-
-#if ADAS_ADC_DISTANCE_CLOSE_IS_HIGH
-    scaled = ADAS_DISTANCE_MAX_CM -
-             (((uint32_t)adc * span) / ADAS_ADC_MAX_VALUE);
-#else
-    scaled = ADAS_DISTANCE_MIN_CM +
-             (((uint32_t)adc * span) / ADAS_ADC_MAX_VALUE);
 #endif
+}
 
-    if (scaled < ADAS_DISTANCE_MIN_CM) {
-        scaled = ADAS_DISTANCE_MIN_CM;
+static uint32_t cycles_per_us(void)
+{
+    uint32_t cycles = SystemCoreClock / 1000000U;
+
+    return cycles == 0U ? 1U : cycles;
+}
+
+static void dwt_delay_init(void)
+{
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0U;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+}
+
+static void delay_us(uint32_t us)
+{
+    uint32_t start = DWT->CYCCNT;
+    uint32_t wait_cycles = us * cycles_per_us();
+
+    while ((uint32_t)(DWT->CYCCNT - start) < wait_cycles) {
+        __NOP();
     }
-    if (scaled > ADAS_DISTANCE_MAX_CM) {
-        scaled = ADAS_DISTANCE_MAX_CM;
+}
+
+static uint8_t wait_echo_state(GPIO_TypeDef *port,
+                               uint16_t pin,
+                               GPIO_PinState state,
+                               uint32_t timeout_us,
+                               uint32_t *elapsed_us)
+{
+    uint32_t start = DWT->CYCCNT;
+    uint32_t per_us = cycles_per_us();
+    uint32_t timeout_cycles = timeout_us * per_us;
+
+    while (HAL_GPIO_ReadPin(port, pin) != state) {
+        if ((uint32_t)(DWT->CYCCNT - start) >= timeout_cycles) {
+            return 0U;
+        }
     }
 
-    return (uint8_t)scaled;
+    if (elapsed_us != NULL) {
+        *elapsed_us = (uint32_t)(DWT->CYCCNT - start) / per_us;
+    }
+    return 1U;
+}
+
+static uint8_t clamp_distance_cm(uint32_t cm)
+{
+    if (cm < ADAS_DISTANCE_MIN_CM) {
+        return ADAS_DISTANCE_MIN_CM;
+    }
+    if (cm > ADAS_DISTANCE_MAX_CM) {
+        return ADAS_DISTANCE_MAX_CM;
+    }
+    return (uint8_t)cm;
+}
+
+static void init_hcsr04_gpio(const Hcsr04Sensor_t *sensor)
+{
+    GPIO_InitTypeDef gpio = {0};
+
+    enable_gpio_clock(sensor->trig_port);
+    enable_gpio_clock(sensor->echo_port);
+
+    HAL_GPIO_WritePin(sensor->trig_port, sensor->trig_pin, GPIO_PIN_RESET);
+
+    gpio.Mode = GPIO_MODE_OUTPUT_PP;
+    gpio.Pull = GPIO_NOPULL;
+    gpio.Speed = GPIO_SPEED_FREQ_LOW;
+    gpio.Pin = sensor->trig_pin;
+    HAL_GPIO_Init(sensor->trig_port, &gpio);
+
+    gpio.Mode = GPIO_MODE_INPUT;
+    gpio.Pull = GPIO_PULLDOWN;
+    gpio.Pin = sensor->echo_pin;
+    HAL_GPIO_Init(sensor->echo_port, &gpio);
+}
+
+static uint8_t measure_hcsr04_cm(const Hcsr04Sensor_t *sensor,
+                                 uint8_t *out_cm,
+                                 uint16_t *out_echo_us)
+{
+    uint32_t pulse_us = 0U;
+
+    if (sensor == NULL || out_cm == NULL || out_echo_us == NULL) {
+        return 0U;
+    }
+
+    HAL_GPIO_WritePin(sensor->trig_port, sensor->trig_pin, GPIO_PIN_RESET);
+    delay_us(2U);
+    HAL_GPIO_WritePin(sensor->trig_port, sensor->trig_pin, GPIO_PIN_SET);
+    delay_us(10U);
+    HAL_GPIO_WritePin(sensor->trig_port, sensor->trig_pin, GPIO_PIN_RESET);
+
+    if (!wait_echo_state(sensor->echo_port,
+                         sensor->echo_pin,
+                         GPIO_PIN_SET,
+                         ADAS_HCSR04_ECHO_START_TIMEOUT_US,
+                         NULL)) {
+        *out_cm = ADAS_DISTANCE_MAX_CM;
+        *out_echo_us = 0U;
+        return 0U;
+    }
+
+    if (!wait_echo_state(sensor->echo_port,
+                         sensor->echo_pin,
+                         GPIO_PIN_RESET,
+                         ADAS_HCSR04_ECHO_TIMEOUT_US,
+                         &pulse_us)) {
+        *out_cm = ADAS_DISTANCE_MAX_CM;
+        *out_echo_us = 0U;
+        return 0U;
+    }
+
+    *out_echo_us = pulse_us > 0xFFFFU ? 0xFFFFU : (uint16_t)pulse_us;
+    *out_cm = clamp_distance_cm((pulse_us + 29U) / 58U);
+    return 1U;
 }
 
 void ADAS_Input_Init(void)
 {
-    GPIO_InitTypeDef gpio = {0};
-
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_GPIOE_CLK_ENABLE();
-    __HAL_RCC_GPIOF_CLK_ENABLE();
-
-    gpio.Mode = GPIO_MODE_ANALOG;
-    gpio.Pull = GPIO_NOPULL;
-    gpio.Speed = GPIO_SPEED_FREQ_LOW;
-
-    gpio.Pin = ADAS_FRONT_ADC_Pin;
-    HAL_GPIO_Init(ADAS_FRONT_ADC_GPIO_Port, &gpio);
-    gpio.Pin = ADAS_REAR_ADC_Pin;
-    HAL_GPIO_Init(ADAS_REAR_ADC_GPIO_Port, &gpio);
-
-    gpio.Mode = GPIO_MODE_INPUT;
-    gpio.Pull = GPIO_PULLUP;
-    gpio.Pin = ADAS_LANE_Pin;
-    HAL_GPIO_Init(ADAS_LANE_GPIO_Port, &gpio);
-    gpio.Pin = ADAS_BRAKE_Pin;
-    HAL_GPIO_Init(ADAS_BRAKE_GPIO_Port, &gpio);
-    gpio.Pin = ADAS_SENSOR_FAULT_Pin;
-    HAL_GPIO_Init(ADAS_SENSOR_FAULT_GPIO_Port, &gpio);
+    dwt_delay_init();
+    init_hcsr04_gpio(&s_front_sensor);
+    init_hcsr04_gpio(&s_rear_sensor);
 
     memset((void *)&s_state, 0, sizeof(s_state));
     s_state.front_distance_cm = ADAS_DISTANCE_MAX_CM;
@@ -146,15 +217,16 @@ void ADAS_Input_Init(void)
 void ADAS_Input_Poll(void)
 {
     AdasInputState_t next = s_state;
+    uint8_t front_ok;
+    uint8_t rear_ok;
 
-    next.front_adc_raw = read_adc_channel(ADAS_FRONT_ADC_CHANNEL);
-    next.rear_adc_raw = read_adc_channel(ADAS_REAR_ADC_CHANNEL);
-    next.front_distance_cm = adc_to_distance_cm(next.front_adc_raw);
-    next.rear_distance_cm = adc_to_distance_cm(next.rear_adc_raw);
-    next.lane_departure = read_button(ADAS_LANE_GPIO_Port, ADAS_LANE_Pin);
-    next.harsh_brake = read_button(ADAS_BRAKE_GPIO_Port, ADAS_BRAKE_Pin);
-    next.sensor_fault = read_button(ADAS_SENSOR_FAULT_GPIO_Port,
-                                    ADAS_SENSOR_FAULT_Pin);
+    front_ok = measure_hcsr04_cm(&s_front_sensor,
+                                 &next.front_distance_cm,
+                                 &next.front_echo_us);
+    rear_ok = measure_hcsr04_cm(&s_rear_sensor,
+                                &next.rear_distance_cm,
+                                &next.rear_echo_us);
+    next.sensor_fault = (front_ok && rear_ok) ? 0U : 1U;
 
     s_state = next;
 }

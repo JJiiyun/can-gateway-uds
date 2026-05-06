@@ -14,8 +14,8 @@
 
 /*
  * Stage switch:
- *   0 = standalone bench mode, send Golf6 0x390 every 100 ms immediately.
- *   1 = integration mode, send Golf6 0x390 only after an IGN-on CAN frame is received.
+ *   0 = standalone bench mode, send turn frame every 100 ms immediately.
+ *   1 = integration mode, send turn frame only after an IGN-on CAN frame is received.
  */
 #ifndef BCM_BODY_WAIT_FOR_IGN
 #define BCM_BODY_WAIT_FOR_IGN 1
@@ -69,29 +69,17 @@ static uint8_t should_transmit(void)
 
 static uint8_t input_changed(const BcmInput_State_t *a, const BcmInput_State_t *b)
 {
-    return a->door_fl != b->door_fl ||
-           a->door_fr != b->door_fr ||
-           a->door_rl != b->door_rl ||
-           a->door_rr != b->door_rr ||
-           a->turn_left_enabled != b->turn_left_enabled ||
-           a->turn_right_enabled != b->turn_right_enabled ||
-           a->high_beam != b->high_beam ||
-           a->fog_light != b->fog_light;
+    return a->turn_left_enabled != b->turn_left_enabled ||
+           a->turn_right_enabled != b->turn_right_enabled;
 }
 
 static void log_input_if_changed(const BcmInput_State_t *input)
 {
     if (!s_input_log_valid || input_changed(input, &s_last_logged_input)) {
         uartPrintf(0,
-                   "[BCM] INPUT door=%u%u%u%u turn=L%u/R%u high=%u fog=%u\r\n",
-                   input->door_fl,
-                   input->door_fr,
-                   input->door_rl,
-                   input->door_rr,
+                   "[BCM] INPUT turn=L%u/R%u\r\n",
                    input->turn_left_enabled,
-                   input->turn_right_enabled,
-                   input->high_beam,
-                   input->fog_light);
+                   input->turn_right_enabled);
         s_last_logged_input = *input;
         s_input_log_valid = 1U;
     }
@@ -119,10 +107,10 @@ void BCM_Body_Init(void)
 
     uartPrintf(0, "\033[2J\033[H");
     uartPrintf(0, "==================================\r\n");
-    uartPrintf(0, "   Body / BCM Simulator\r\n");
+    uartPrintf(0, "   Turn Signal Simulator\r\n");
     uartPrintf(0, "   Type 'help' or 'bcm_help'\r\n");
     uartPrintf(0, "==================================\r\n\r\n");
-    uartPrintf(0, "[BCM] Body module ready, wait_for_ign=%u\r\n",
+    uartPrintf(0, "[BCM] Turn module ready, wait_for_ign=%u\r\n",
                (unsigned)BCM_BODY_WAIT_FOR_IGN);
     uartPrintf(0, "CLI > ");
 }
@@ -161,7 +149,7 @@ void BCM_Body_Task(void *argument)
         BCM_Cli_Process();
 
         if ((now - last_status_tick) >= PERIOD_BODY_STATUS_MS) {
-            BcmSignal_BodyStatus_t status;
+            BcmSignal_TurnStatus_t status;
             CAN_Msg_t msg;
             uint8_t blink_on = ((now / PERIOD_TURN_BLINK_MS) % 2U) == 0U ? 1U : 0U;
 
@@ -171,10 +159,10 @@ void BCM_Body_Task(void *argument)
             log_input_if_changed(&status.input);
             status.left_blink_on = blink_on;
             status.right_blink_on = blink_on;
-            BCM_Signal_BuildBodyStatus(&status, &msg);
+            BCM_Signal_BuildTurnFrame(&status, &msg);
 
             if (should_transmit()) {
-                (void)BCM_Can_SendBodyStatus(&msg);
+                (void)BCM_Can_SendTurnStatus(&msg);
             }
         }
 
@@ -190,48 +178,6 @@ void BCM_Body_OnCanRx(const CAN_Msg_t *msg)
 BCM_NOINLINE uint8_t BCM_Body_IsIgnOn(void)
 {
     return should_transmit();
-}
-
-uint8_t BCM_Body_GetLampStatus(void)
-{
-    BcmInput_State_t input;
-    uint8_t lamp = 0U;
-
-    BCM_Input_GetState(&input);
-    if (input.turn_left_enabled) {
-        lamp |= BODY_BIT_TURN_LEFT;
-    }
-    if (input.turn_right_enabled) {
-        lamp |= BODY_BIT_TURN_RIGHT;
-    }
-    if (input.high_beam) {
-        lamp |= BODY_BIT_HIGH_BEAM;
-    }
-    if (input.fog_light) {
-        lamp |= BODY_BIT_FOG_LAMP;
-    }
-    return lamp;
-}
-
-uint8_t BCM_Body_GetDoorStatus(void)
-{
-    BcmInput_State_t input;
-    uint8_t door = 0U;
-
-    BCM_Input_GetState(&input);
-    if (input.door_fl) {
-        door |= BODY_BIT_DOOR_FL;
-    }
-    if (input.door_fr) {
-        door |= BODY_BIT_DOOR_FR;
-    }
-    if (input.door_rl) {
-        door |= BODY_BIT_DOOR_RL;
-    }
-    if (input.door_rr) {
-        door |= BODY_BIT_DOOR_RR;
-    }
-    return door;
 }
 
 BCM_NOINLINE uint32_t BCM_Body_GetTxCount(void)

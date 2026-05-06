@@ -25,7 +25,7 @@ void ADAS_Signal_DecodeStatusFrame(const CAN_Msg_t *msg, AdasStatus_t *out_statu
 {
     if (msg == NULL || out_status == NULL ||
         msg->id != CAN_ID_ADAS_STATUS ||
-        msg->dlc < CAN_ADAS_STATUS_DLC) {
+        msg->dlc != CAN_ADAS_STATUS_DLC) {
         return;
     }
 

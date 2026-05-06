@@ -8,16 +8,23 @@
 
 #include <string.h>
 
-#define ADAS_INPUT_PERIOD_MS          20U
+#ifndef ADAS_INPUT_PERIOD_MS
+#define ADAS_INPUT_PERIOD_MS          60U
+#endif
+
+#ifndef ADAS_STATUS_PERIOD_MS
 #define ADAS_STATUS_PERIOD_MS         100U
+#endif
+
+#ifndef ADAS_LOG_PERIOD_MS
 #define ADAS_LOG_PERIOD_MS            1000U
+#endif
 
 #define ADAS_FRONT_WARN_CM            50U
 #define ADAS_FRONT_DANGER_CM          30U
 #define ADAS_REAR_WARN_CM             25U
 #define ADAS_FRONT_WARN_SPEED_KMH     20U
 #define ADAS_FRONT_DANGER_SPEED_KMH   40U
-#define ADAS_HARSH_BRAKE_SPEED_KMH    30U
 
 static AdasStatus_t s_status;
 static uint8_t s_initialized;
@@ -46,22 +53,6 @@ static void evaluate_status(uint8_t alive)
     next.speed_kmh = clamp_speed(speed_kmh);
     next.alive = alive;
 
-    if (input.lane_departure) {
-        next.flags |= ADAS_FLAG_LANE_DEPARTURE;
-        next.input_bitmap |= ADAS_INPUT_LANE_BUTTON;
-        next.risk_level = max_u8(next.risk_level, 2U);
-    }
-
-    if (input.harsh_brake) {
-        next.flags |= ADAS_FLAG_HARSH_BRAKE;
-        next.input_bitmap |= ADAS_INPUT_BRAKE_BUTTON;
-        if (speed_kmh >= ADAS_HARSH_BRAKE_SPEED_KMH) {
-            next.risk_level = max_u8(next.risk_level, 2U);
-        } else {
-            next.risk_level = max_u8(next.risk_level, 1U);
-        }
-    }
-
     if (input.front_distance_cm <= ADAS_FRONT_DANGER_CM &&
         speed_kmh >= ADAS_FRONT_DANGER_SPEED_KMH) {
         next.flags |= ADAS_FLAG_FRONT_COLLISION;
@@ -79,8 +70,8 @@ static void evaluate_status(uint8_t alive)
 
     if (input.sensor_fault) {
         next.flags |= ADAS_FLAG_SENSOR_FAULT;
-        next.input_bitmap |= ADAS_INPUT_SENSOR_FAULT;
         next.fault_bitmap |= ADAS_FAULT_FRONT_SENSOR | ADAS_FAULT_REAR_SENSOR;
+        next.input_bitmap |= ADAS_INPUT_SENSOR_FAULT;
         next.risk_level = max_u8(next.risk_level, 2U);
     }
 
@@ -94,6 +85,7 @@ static uint8_t status_changed_for_log(const AdasStatus_t *a, const AdasStatus_t 
            a->front_distance_cm != b->front_distance_cm ||
            a->rear_distance_cm != b->rear_distance_cm ||
            a->fault_bitmap != b->fault_bitmap ||
+           a->input_bitmap != b->input_bitmap ||
            a->speed_kmh != b->speed_kmh;
 }
 

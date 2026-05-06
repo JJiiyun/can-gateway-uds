@@ -20,7 +20,7 @@ typedef struct {
 } BcmCan_Stats_t;
 
 int BCM_Can_Init(void);
-int BCM_Can_SendBodyStatus(const CAN_Msg_t *msg);
+int BCM_Can_SendTurnStatus(const CAN_Msg_t *msg);
 void BCM_Can_PollRx(uint32_t timeout_ms);
 void BCM_Can_OnRx(const CAN_Msg_t *msg);
 

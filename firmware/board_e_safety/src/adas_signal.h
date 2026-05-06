@@ -20,6 +20,14 @@ typedef struct {
     uint8_t alive;
 } AdasStatus_t;
 
+#ifndef CAN_ID_ADAS_STATUS
+#define CAN_ID_ADAS_STATUS               0x3A0U
+#endif
+
+#ifndef CAN_ADAS_STATUS_DLC
+#define CAN_ADAS_STATUS_DLC              8U
+#endif
+
 void ADAS_Signal_BuildStatusFrame(const AdasStatus_t *status, CAN_Msg_t *out_msg);
 void ADAS_Signal_DecodeStatusFrame(const CAN_Msg_t *msg, AdasStatus_t *out_status);
 
