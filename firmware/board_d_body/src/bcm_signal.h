@@ -14,20 +14,12 @@
 extern "C" {
 #endif
 
-#ifndef CAN_ID_CLUSTER_TURN
-#define CAN_ID_CLUSTER_TURN           0x531U
-#endif
-
 #ifndef CAN_ID_CLUSTER_TURN_STATUS
-#define CAN_ID_CLUSTER_TURN_STATUS    CAN_ID_CLUSTER_TURN
-#endif
-
-#ifndef CAN_CLUSTER_DLC
-#define CAN_CLUSTER_DLC               8U
+#define CAN_ID_CLUSTER_TURN_STATUS    0x531U
 #endif
 
 #ifndef CAN_CLUSTER_FRAME_DLC
-#define CAN_CLUSTER_FRAME_DLC         CAN_CLUSTER_DLC
+#define CAN_CLUSTER_FRAME_DLC         8U
 #endif
 
 #ifndef CAN_CLUSTER_531_TURN_IDX

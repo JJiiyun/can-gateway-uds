@@ -36,11 +36,13 @@ extern CAN_HandleTypeDef hcan1;
 #endif
 
 static volatile AdasCanStats_t s_stats;
-static volatile uint32_t s_last_engine_rx_tick;
+static volatile uint32_t s_last_speed_rx_tick;
+static volatile uint32_t s_last_ign_rx_tick;
+static volatile uint8_t s_ign_on;
 
-static uint8_t engine_frame_is_ign_on(const CAN_RxMessage_t *rx)
+static uint8_t ign_status_frame_is_on(const CAN_RxMessage_t *rx)
 {
-    return (rx->data[CAN_ENGINE_DATA_STATUS_IDX] & CAN_ENGINE_STATUS_IGN_MASK) != 0U;
+    return VW300_GET_IGN_ON(rx->data) ? 1U : 0U;
 }
 
 static uint16_t decode_cluster_speed_1a0(const CAN_RxMessage_t *rx)
@@ -58,14 +60,35 @@ static uint16_t decode_cluster_speed_5a0(const CAN_RxMessage_t *rx)
 static void update_vehicle_speed(uint16_t speed_kmh)
 {
     s_stats.speed_kmh = speed_kmh;
-    s_stats.engine_active = 1U;
-    s_last_engine_rx_tick = HAL_GetTick();
+    s_last_speed_rx_tick = HAL_GetTick();
+}
+
+static void update_ign_status(const CAN_RxMessage_t *rx)
+{
+    s_ign_on = ign_status_frame_is_on(rx);
+    s_last_ign_rx_tick = HAL_GetTick();
+    s_stats.engine_active = s_ign_on;
+
+    if (s_ign_on == 0U) {
+        s_stats.speed_kmh = 0U;
+    }
+}
+
+static uint8_t ign_status_recent(uint32_t now)
+{
+    if (s_ign_on == 0U || s_last_ign_rx_tick == 0U) {
+        return 0U;
+    }
+
+    return ((uint32_t)(now - s_last_ign_rx_tick) <= ADAS_ENGINE_TIMEOUT_MS) ? 1U : 0U;
 }
 
 int ADAS_Can_Init(void)
 {
     memset((void *)&s_stats, 0, sizeof(s_stats));
-    s_last_engine_rx_tick = 0U;
+    s_last_speed_rx_tick = 0U;
+    s_last_ign_rx_tick = 0U;
+    s_ign_on = 0U;
 
     if (CAN_BSP_Init() != HAL_OK) {
         uartPrintf(0, "[ADAS] CAN BSP init failed\r\n");
@@ -90,6 +113,12 @@ void ADAS_Can_PollRx(uint32_t timeout_ms)
         return;
     }
 
+    if (rx.id == CAN_ID_IGN_STATUS &&
+        rx.dlc >= CAN_ENGINE_DATA_DLC) {
+        update_ign_status(&rx);
+        return;
+    }
+
     if (rx.id == CAN_ID_CLUSTER_SPEED_1A0 &&
         rx.dlc >= CAN_CLUSTER_DLC) {
         update_vehicle_speed(decode_cluster_speed_1a0(&rx));
@@ -102,21 +131,21 @@ void ADAS_Can_PollRx(uint32_t timeout_ms)
         return;
     }
 
-    if (rx.id == CAN_ID_ENGINE_DATA &&
-        rx.dlc >= CAN_ENGINE_DATA_DLC &&
-        engine_frame_is_ign_on(&rx)) {
-        update_vehicle_speed(CAN_GetU16LE(rx.data, CAN_ENGINE_DATA_SPEED_IDX));
-    }
 }
 
 uint16_t ADAS_Can_GetVehicleSpeedKmh(void)
 {
-    if (!s_stats.engine_active) {
+    uint32_t now = HAL_GetTick();
+
+    if (!ign_status_recent(now)) {
+        s_stats.engine_active = 0U;
         return 0U;
     }
 
-    if ((uint32_t)(HAL_GetTick() - s_last_engine_rx_tick) > ADAS_ENGINE_TIMEOUT_MS) {
-        s_stats.engine_active = 0U;
+    s_stats.engine_active = 1U;
+
+    if (s_last_speed_rx_tick == 0U ||
+        (uint32_t)(now - s_last_speed_rx_tick) > ADAS_ENGINE_TIMEOUT_MS) {
         return 0U;
     }
 
