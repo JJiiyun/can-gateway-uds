@@ -23,6 +23,7 @@ typedef struct {
     uint16_t rpm;
     uint16_t speed_kmh;
     uint8_t coolant_c;
+    uint8_t warning_flags;
     uint8_t board_a_alive;
     bool ign_on;
     uint32_t last_rx_tick;
@@ -66,6 +67,8 @@ static void update_input_from_board_a(const CAN_RxMessage_t *rx_msg)
     s_cluster_input.rpm = CAN_GetU16LE(rx_msg->data, CAN_ENGINE_DATA_RPM_IDX);
     s_cluster_input.speed_kmh = CAN_GetU16LE(rx_msg->data, CAN_ENGINE_DATA_SPEED_IDX);
     s_cluster_input.coolant_c = rx_msg->data[CAN_ENGINE_DATA_COOLANT_IDX];
+    s_cluster_input.warning_flags =
+        (uint8_t)(rx_msg->data[CAN_ENGINE_DATA_WARNING_IDX] & CAN_ENGINE_WARNING_MASK);
     s_cluster_input.ign_on = ((status & CAN_ENGINE_STATUS_IGN_MASK) != 0U);
     s_cluster_input.board_a_alive =
         (uint8_t)((status & CAN_ENGINE_STATUS_ALIVE_MASK) >> CAN_ENGINE_STATUS_ALIVE_SHIFT);
@@ -181,6 +184,11 @@ void GatewayEngineBridge_GetState(GatewayEngineBridge_State_t *state)
     state->rpm = s_cluster_input.rpm;
     state->speed_kmh = s_cluster_input.speed_kmh;
     state->coolant_c = s_cluster_input.coolant_c;
+    state->warning_flags = s_cluster_input.warning_flags;
+    state->rpm_warning =
+        (s_cluster_input.warning_flags & CAN_ENGINE_WARNING_RPM_MASK) != 0U ? 1U : 0U;
+    state->coolant_warning =
+        (s_cluster_input.warning_flags & CAN_ENGINE_WARNING_COOLANT_MASK) != 0U ? 1U : 0U;
     state->board_a_alive = s_cluster_input.board_a_alive;
     state->ign_on = s_cluster_input.ign_on ? 1U : 0U;
     state->active = is_input_active(now) ? 1U : 0U;

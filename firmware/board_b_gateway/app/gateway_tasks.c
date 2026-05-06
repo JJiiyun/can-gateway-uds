@@ -108,16 +108,13 @@ void GatewayTask(void *argument)
         GatewayUdsServer_OnRx(&rxMsg);
 
         if (rxMsg.bus == 1U && rxMsg.id == CAN_ID_ENGINE_DATA) {
-            uint16_t rpm = CAN_GetU16LE(rxMsg.data, CAN_ENGINE_DATA_RPM_IDX);
+            uint8_t warning_flags =
+                (uint8_t)(rxMsg.data[CAN_ENGINE_DATA_WARNING_IDX] & CAN_ENGINE_WARNING_MASK);
             HAL_StatusTypeDef tx_status =
                 CAN_BSP_SendTo(&hcan2, rxMsg.id, rxMsg.data, rxMsg.dlc);
             CanCliMonitor_LogTx(2U, rxMsg.id, rxMsg.data, rxMsg.dlc, tx_status);
 
-            if (rpm >= 5000U) {
-                s_warning_active = 1U;
-            } else if (rpm < 4500U) {
-                s_warning_active = 0U;
-            }
+            s_warning_active = warning_flags != 0U ? 1U : 0U;
 
             if (tx_status != HAL_OK) {
                 log_printf("[GW] CAN2 TX fail id=0x%03lX st=%d\r\n",
@@ -162,7 +159,8 @@ void LoggerTask(void *argument)
 
             log_printf("[GW] RX1=%lu TX1=%lu RX2=%lu TX2=%lu busy=%lu err=%lu warn=%u "
                        "adas=%u risk=%u fault=0x%02X dtc=0x%02X "
-                       "rpm=%u speed=%u coolant=%u ign=%u alive=%u active=%u age=%lu\r\n",
+                       "rpm=%u speed=%u coolant=%u eng_warn=0x%02X rpm_warn=%u coolant_warn=%u "
+                       "ign=%u alive=%u active=%u age=%lu\r\n",
                        (unsigned long)can1RxCount,
                        (unsigned long)can1TxCount,
                        (unsigned long)can2RxCount,
@@ -177,6 +175,9 @@ void LoggerTask(void *argument)
                        (unsigned int)engine_state.rpm,
                        (unsigned int)engine_state.speed_kmh,
                        (unsigned int)engine_state.coolant_c,
+                       (unsigned int)engine_state.warning_flags,
+                       (unsigned int)engine_state.rpm_warning,
+                       (unsigned int)engine_state.coolant_warning,
                        (unsigned int)engine_state.ign_on,
                        (unsigned int)engine_state.board_a_alive,
                        (unsigned int)engine_state.active,

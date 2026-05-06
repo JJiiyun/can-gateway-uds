@@ -7,6 +7,9 @@ typedef struct {
     uint16_t rpm;
     uint16_t speed_kmh;
     uint8_t coolant_c;
+    uint8_t warning_flags;
+    uint8_t rpm_warning;
+    uint8_t coolant_warning;
     uint8_t board_a_alive;
     uint8_t ign_on;
     uint8_t active;
