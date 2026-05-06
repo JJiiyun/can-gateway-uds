@@ -93,16 +93,31 @@ Rectangle {
 
                 StatusPill { x: 0; y: 0; width: 180; height: 38; label: "Response"; active: uds.lastPositive; activeText: "POS"; inactiveText: "WAIT" }
                 Text { x: 196; y: 9; width: parent.width - 196; text: uds.lastDid; color: "#3ba7ff"; font.pixelSize: 14; font.weight: Font.Bold; elide: Text.ElideRight }
+                UiButton {
+                    x: parent.width - 96; y: 0; width: 96; height: 38
+                    text: "Clear"
+                    onClicked: uds.clearResponseLog()
+                }
+
                 Rectangle { x: 0; y: 56; width: parent.width; height: parent.height - 56; radius: 8; color: "#0d1115"; border.color: "#2a343f"; border.width: 1 }
-                TextEdit {
+                ScrollView {
                     x: 12; y: 68; width: parent.width - 24; height: parent.height - 80
-                    text: uds.lastResponse
-                    color: "#e8edf2"
-                    font.family: "monospace"
-                    font.pixelSize: 12
-                    readOnly: true
-                    wrapMode: TextEdit.Wrap
-                    selectByMouse: true
+                    clip: true
+
+                    TextArea {
+                        id: diagnosticLog
+                        text: uds.responseLog
+                        color: "#e8edf2"
+                        selectedTextColor: "#101418"
+                        selectionColor: "#3ba7ff"
+                        font.family: "monospace"
+                        font.pixelSize: 12
+                        readOnly: true
+                        wrapMode: TextArea.Wrap
+                        selectByMouse: true
+                        background: Rectangle { color: "transparent" }
+                        onTextChanged: cursorPosition = length
+                    }
                 }
             }
 

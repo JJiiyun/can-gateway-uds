@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 19.0.1, 2026-05-04T17:53:07. -->
+<!-- Written by QtCreator 19.0.1, 2026-05-04T00:56:49. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
-  <value type="QByteArray">{f6606b6b-55a4-4217-94f8-0643b1421684}</value>
+  <value type="QByteArray">{01d0a7f9-b01b-43d3-9de9-102526508930}</value>
  </data>
  <data>
   <variable>ProjectExplorer.Project.ActiveTarget</variable>
@@ -209,11 +209,6 @@
      <value type="QString" key="ProjectExplorer.ProjectConfiguration.Id">ApplicationManagerPlugin.Deploy.Configuration</value>
     </valuemap>
     <value type="qlonglong" key="ProjectExplorer.Target.DeployConfigurationCount">2</value>
-    <valuemap type="QVariantMap" key="ProjectExplorer.Target.PluginSettings">
-     <value type="bool" key="AndroidBuildTargetDirSupport">false</value>
-     <valuelist type="QVariantList" key="ApplicationmanagerPackageTargets"/>
-     <value type="bool" key="UseAndroidBuildTargetDir">false</value>
-    </valuemap>
     <valuemap type="QVariantMap" key="ProjectExplorer.Target.RunConfiguration.0">
      <value type="bool" key="Analyzer.Perf.Settings.UseGlobalSettings">true</value>
      <value type="bool" key="Analyzer.QmlProfiler.Settings.UseGlobalSettings">true</value>

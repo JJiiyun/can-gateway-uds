@@ -15,6 +15,7 @@ class UdsController : public QObject
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusTextChanged)
     Q_PROPERTY(QString lastCommand READ lastCommand NOTIFY dataChanged)
     Q_PROPERTY(QString lastResponse READ lastResponse NOTIFY dataChanged)
+    Q_PROPERTY(QString responseLog READ responseLog NOTIFY responseLogChanged)
     Q_PROPERTY(QString lastDid READ lastDid NOTIFY dataChanged)
     Q_PROPERTY(bool lastPositive READ lastPositive NOTIFY dataChanged)
 
@@ -28,6 +29,7 @@ public:
     QString statusText() const;
     QString lastCommand() const;
     QString lastResponse() const;
+    QString responseLog() const;
     QString lastDid() const;
     bool lastPositive() const;
 
@@ -44,12 +46,14 @@ public:
     Q_INVOKABLE void readFault();
     Q_INVOKABLE void clearDtc();
     Q_INVOKABLE void sendRaw(const QString &command);
+    Q_INVOKABLE void clearResponseLog();
 
 signals:
     void portNamesChanged();
     void connectedChanged();
     void statusTextChanged();
     void dataChanged();
+    void responseLogChanged();
 
 private:
     void sendCommand(const QString &command, const QString &did = QString());
@@ -60,6 +64,7 @@ private:
     AppLogModel *m_logModel = nullptr;
     QString m_lastCommand = QStringLiteral("-");
     QString m_lastResponse = QStringLiteral("-");
+    QString m_responseLog;
     QString m_lastDid = QStringLiteral("-");
     bool m_lastPositive = false;
 };

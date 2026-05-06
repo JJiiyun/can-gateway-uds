@@ -23,6 +23,7 @@ bool UdsController::connected() const { return m_serial.connected(); }
 QString UdsController::statusText() const { return m_serial.statusText(); }
 QString UdsController::lastCommand() const { return m_lastCommand; }
 QString UdsController::lastResponse() const { return m_lastResponse; }
+QString UdsController::responseLog() const { return m_responseLog; }
 QString UdsController::lastDid() const { return m_lastDid; }
 bool UdsController::lastPositive() const { return m_lastPositive; }
 
@@ -40,6 +41,12 @@ void UdsController::readRear() { sendCommand(QStringLiteral("read rear"), QStrin
 void UdsController::readFault() { sendCommand(QStringLiteral("read fault"), QStringLiteral("0xF413 Fault")); }
 void UdsController::clearDtc() { sendCommand(QStringLiteral("clear dtc"), QStringLiteral("SID 0x14 Clear DTC")); }
 void UdsController::sendRaw(const QString &command) { sendCommand(command.trimmed(), QStringLiteral("raw")); }
+
+void UdsController::clearResponseLog()
+{
+    m_responseLog.clear();
+    emit responseLogChanged();
+}
 
 void UdsController::sendCommand(const QString &command, const QString &did)
 {
@@ -80,4 +87,22 @@ void UdsController::appendLog(const QString &direction, const QString &text)
     if (m_logModel) {
         m_logModel->append(QStringLiteral("UDS"), direction, text);
     }
+
+    const QString line = QStringLiteral("[%1] %2").arg(direction, text);
+    if (m_responseLog.isEmpty()) {
+        m_responseLog = line;
+    } else {
+        m_responseLog += QStringLiteral("\n") + line;
+    }
+
+    constexpr qsizetype kMaxLogChars = 16000;
+    if (m_responseLog.size() > kMaxLogChars) {
+        m_responseLog = m_responseLog.right(kMaxLogChars);
+        const qsizetype firstNewline = m_responseLog.indexOf(QLatin1Char('\n'));
+        if (firstNewline >= 0) {
+            m_responseLog.remove(0, firstNewline + 1);
+        }
+    }
+
+    emit responseLogChanged();
 }
