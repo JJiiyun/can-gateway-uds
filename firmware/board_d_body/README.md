@@ -1,85 +1,62 @@
-# Board D - Body / BCM
+# Board D - Turn Signal ECU
 
-Board D는 도어, 방향지시등, 하이빔, 안개등 같은 Body 신호를 만들고 CAN1에 송신하는 보드입니다.
+Board D is the turn-signal ECU. It only owns left/right turn input and `0x531` Turn Status transmission. It does not generate RPM, speed, coolant, ADAS, door, high-beam, fog-lamp, or body-status frames.
 
-현재 연동 기준:
+## Current Contract
 
-- IGN 수신: 기존 Board A `0x100` EngineData `byte5 bit0`
-- Golf 6 IGN 수신도 지원: `0x570`/`0x572` Klemme 15 `byte0 bit1`
-- Body 송신: Golf 6 DBC `BO_ 912 mGate_Komf_1`, CAN ID `0x390`, DLC 8, 100ms
-
-## 역할
-
-| 파일 | 역할 |
+| Item | Value |
 |---|---|
-| `src/bcm_input.c` | DIP 스위치 / 버튼 GPIO 입력 |
-| `src/bcm_cli.c` | PC GUI/터미널용 UART CLI, GPIO/UART 입력 모드 전환 |
-| `src/bcm_signal.c` | Golf 6 `mGate_Komf_1`(`0x390`) 신호 패킹 |
-| `src/bcm_can.c` | `common/can_bsp.c/h`를 통한 CAN 송수신 |
-| `src/bcm_main.c` | FreeRTOS Task 연결, BCM/CLI task orchestration |
+| CAN bus | CAN1 |
+| Reference input | Board A `0x100` IGN Status from CAN |
+| TX frame | `0x531` Turn Status |
+| TX period | 100 ms |
+| Blink period | 500 ms |
+| Integration gate | Send turn status only while IGN is ON, unless CLI override is used |
 
-## CAN 메시지
+## CAN RX
 
-| ID | 방향 | 내용 |
+Board D reads CAN frames through the shared CAN BSP RX queue. It does not read Board A directly.
+
+| CAN ID | DLC | Sender | Field | Meaning |
+|---:|---:|---|---|---|
+| `0x100` | 8 | Board A | `byte[5] bit0` | IGN ON |
+| `0x570` | >= 1 | Golf 6 compatible body frame | `byte[0] bit1` | Klemme 15 fallback |
+| `0x572` | >= 1 | Golf 6 compatible ignition frame | `byte[0] bit1` | Klemme 15 fallback |
+
+If the last valid IGN frame is older than 500 ms, Board D treats IGN as OFF.
+
+## CAN TX
+
+### `0x531` Turn Status
+
+| Item | Value |
+|---|---|
+| CAN ID | `0x531` |
+| DLC | 8 |
+| Period | 100 ms |
+| Used byte | `byte[2]` |
+
+| Byte / Bit | Meaning |
+|---|---|
+| `byte[2] bit0` | Left turn blink ON |
+| `byte[2] bit1` | Right turn blink ON |
+| `byte[2] bit2` | Hazard ON when left and right blink together |
+| other bits | 0 |
+
+Board B's gateway router expects this frame on CAN1 and routes it to CAN2.
+
+## Physical Inputs
+
+Inputs are active low with pull-up. A pressed button connects the pin to GND.
+
+| Function | Default pin | Behavior |
 |---|---|---|
-| `0x100` | Board A -> Board D | 현재 프로젝트 EngineData, IGN = byte5 bit0 |
-| `0x570` | Golf 6 -> Board D | `mBSG_Last`, Klemme 15 = byte0 bit1 |
-| `0x572` | Golf 6 -> Board D | `mZAS_1`, Klemme 15 = byte0 bit1 |
-| `0x390` | Board D -> CAN1 | Golf 6 `mGate_Komf_1`: turn, door, high beam, fog |
+| Left Turn Button | `PE6` | Toggles left turn enable |
+| Right Turn Button | `PF6` | Toggles right turn enable |
 
-## Golf 6 mGate_Komf_1 Mapping
+## UART CLI
 
-`docs/Golf_6_PQ35.dbc` 기준:
-
-| Signal | Bit | Board D input |
-|---|---:|---|
-| `GK1_Sta_Tuerkont` | 4 | any door open |
-| `GK1_Fa_Tuerkont` | 16 | any door open |
-| `GK1_Blinker_li` | 34 | left turn blink state |
-| `GK1_Blinker_re` | 35 | right turn blink state |
-| `GK1_LS1_Fernlicht` | 37 | high beam |
-| `GK1_Fernlicht` | 49 | high beam |
-| `GK1_Nebel_ein` | 58 | fog light |
-
-`GK1_SleepAckn`, `GK1_Rueckfahr`, `GK1_Warnblk_Status`는 DBC 기본 상태 유지를 위해 1로 송신합니다.
-
-## 기본 입력 매핑
-
-입력은 pull-up 기준입니다. 스위치/버튼이 GND로 연결되면 active입니다.
-
-| 기능 | F429ZI 기본 핀 |
-|---|---|
-| FL Door | PE2 |
-| FR Door | PE3 |
-| RL Door | PE4 |
-| RR Door | PE5 |
-| Left Turn Button | PE6 |
-| Right Turn Button | PF6 |
-| High Beam | PF7 |
-| Fog Light | PF8 |
-
-## UART CLI / GUI 제어
-
-Board D는 `common/uart.c` + `common/cli.c` 기반의 USART3/ST-LINK VCP CLI를 사용합니다.
-
-기본 연결:
-
-```text
-Baudrate : 115200
-Data     : 8 bit
-Parity   : None
-Stop     : 1 bit
-Flow     : None
-```
-
-입력 모드는 두 가지입니다.
-
-| 모드 | 의미 |
-|---|---|
-| `gpio` | 기존 DIP/button GPIO 입력을 읽어 `0x390` 생성 |
-| `uart` | PC GUI/터미널에서 보낸 CLI 값으로 `0x390` 생성 |
-
-주요 명령:
+Default UART is USART3 / ST-LINK VCP, 115200 8N1.
 
 ```text
 body mode gpio
@@ -89,23 +66,11 @@ body ign auto
 body ign on
 body ign off
 
-body door fl 1
-body door fr 0
-body door rl 0
-body door rr 0
-body door all 0
-
 body turn left 1
 body turn right 0
 body turn both 0
 
-body high 1
-body fog 0
-
-body all doors 0
-body all lamps 0
 body all off
-
 body status
 body monitor on 200
 body monitor off
@@ -113,20 +78,19 @@ body monitor once
 body reset
 ```
 
-`body door`, `body turn`, `body high`, `body fog`, `body all` 명령은 자동으로 `uart` 모드로 전환합니다.
+`body ign auto` uses CAN-derived IGN. `body ign on` and `body ign off` are bench-test overrides.
 
-GUI 파싱용 모니터 라인 포맷:
+## Verification
 
-```text
-BODY mode=uart ign=1 fl=1 fr=0 rl=0 rr=0 left=1 right=0 high=1 fog=0 tx=1234 rx=12
+1. Confirm Board A sends CAN1 `0x100` with `byte[5] bit0 = 1`.
+2. Confirm Board D logs or reports IGN ON in `body status`.
+3. Press left/right input and verify CAN1 `0x531` appears every 100 ms.
+4. Verify `byte[2] bit0` and `byte[2] bit1` blink with the 500 ms blink phase.
+5. Verify Board B routes `0x531` from CAN1 to CAN2.
+
+## Build
+
+```bash
+cmake --preset Debug --fresh
+cmake --build --preset Debug --parallel
 ```
-
-`body ign auto`는 기존처럼 CAN에서 수신한 IGN 상태를 따릅니다. `body ign on`은 벤치/GUI 테스트용으로 `0x390` 송신을 강제로 허용합니다.
-
-## CAN 테스트
-
-1. Board A가 `0x100`을 보내고 `byte5 bit0 = 1`이면 Board D가 IGN ON으로 인식합니다.
-2. Board D는 IGN ON 동안 Golf 6 `0x390`을 100ms 주기로 송신합니다.
-3. CAN monitor에서 `0x390`이 보이고, 입력 변화에 따라 위 bit들이 변하는지 확인합니다.
-
-주의: 현재 `board_b_gateway` 코드는 `0x100`만 CAN2로 포워딩합니다. `board_b_gateway`를 수정하지 않는 조건이면 `0x390`은 CAN1에서는 보이지만 CAN2/계기판 쪽으로는 자동 포워딩되지 않습니다.

@@ -10,11 +10,9 @@ extern "C" {
 typedef struct {
     uint8_t front_distance_cm;
     uint8_t rear_distance_cm;
-    uint8_t lane_departure;
-    uint8_t harsh_brake;
     uint8_t sensor_fault;
-    uint16_t front_adc_raw;
-    uint16_t rear_adc_raw;
+    uint16_t front_echo_us;
+    uint16_t rear_echo_us;
 } AdasInputState_t;
 
 void ADAS_Input_Init(void);

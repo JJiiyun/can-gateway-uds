@@ -32,10 +32,15 @@ static uint8_t get_bit(const uint8_t *data, uint8_t bit)
     return (data[bit / 8U] & (uint8_t)(1U << (bit % 8U))) != 0U;
 }
 
+static uint8_t is_turn_tx_id(uint32_t id)
+{
+    return id == CAN_ID_CLUSTER_TURN_STATUS;
+}
+
 static uint8_t decode_ign_on(const CAN_Msg_t *msg, const char **source)
 {
-    if (msg->id == CAN_ID_ENGINE_DATA && msg->dlc == CAN_ENGINE_DATA_DLC) {
-        *source = "ENGINE_DATA";
+    if (msg->id == CAN_ID_IGN_STATUS && msg->dlc == CAN_ENGINE_DATA_DLC) {
+        *source = "IGN_STATUS";
         return VW300_GET_IGN_ON(msg->data) ? 1U : 0U;
     }
 
@@ -65,13 +70,13 @@ int BCM_Can_Init(void)
     return 0;
 }
 
-int BCM_Can_SendBodyStatus(const CAN_Msg_t *msg)
+int BCM_Can_SendTurnStatus(const CAN_Msg_t *msg)
 {
     HAL_StatusTypeDef tx_status;
 
     if (msg == NULL ||
-        msg->id != BCM_GOLF6_CAN_ID_MGATE_KOMF_1 ||
-        msg->dlc != BCM_GOLF6_MGATE_KOMF_1_DLC) {
+        !is_turn_tx_id(msg->id) ||
+        msg->dlc != CAN_CLUSTER_FRAME_DLC) {
         s_stats.tx_error_count++;
         uartPrintf(0, "[BCM] TX REJECT id=0x%03lX dlc=%u err=%lu\r\n",
                    msg != NULL ? (unsigned long)msg->id : 0UL,
