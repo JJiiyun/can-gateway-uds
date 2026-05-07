@@ -121,14 +121,13 @@ void GatewaySafetyBridge_OnRx(const CAN_RxMessage_t *rx_msg)
     }
 
     s_diag.valid = 1U;
+    s_diag.flags = rx_msg->data[CAN_ADAS_STATUS_FLAGS_IDX];
+    s_diag.risk_level = rx_msg->data[CAN_ADAS_STATUS_RISK_LEVEL_IDX];
     s_diag.front_distance_cm = rx_msg->data[CAN_ADAS_STATUS_FRONT_CM_IDX];
     s_diag.rear_distance_cm = rx_msg->data[CAN_ADAS_STATUS_REAR_CM_IDX];
-    s_diag.flags = (uint8_t)(rx_msg->data[CAN_ADAS_STATUS_WARNING_IDX] |
-                             ADAS_FLAG_ACTIVE);
-    s_diag.risk_level = rx_msg->data[CAN_ADAS_STATUS_RISK_LEVEL_IDX];
     s_diag.active_fault_bitmap = rx_msg->data[CAN_ADAS_STATUS_FAULT_BITMAP_IDX];
-    s_diag.gong_flags = rx_msg->data[CAN_ADAS_STATUS_GONG_IDX];
-    s_diag.speed_kmh = 0U;
+    s_diag.gong_flags = 0U;
+    s_diag.speed_kmh = rx_msg->data[CAN_ADAS_STATUS_SPEED_KMH_IDX];
     s_diag.alive = rx_msg->data[CAN_ADAS_STATUS_ALIVE_IDX];
     s_diag.last_rx_tick = osKernelGetTickCount();
 
@@ -169,4 +168,9 @@ void GatewaySafetyBridge_GetDiagnostic(GatewaySafetyDiagnostic_t *out_diag)
     if (out_diag != NULL) {
         *out_diag = s_diag;
     }
+}
+
+void GatewaySafetyBridge_ClearDtc(void)
+{
+    s_diag.dtc_bitmap = 0U;
 }

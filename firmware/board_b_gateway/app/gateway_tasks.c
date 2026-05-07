@@ -4,6 +4,7 @@
 #include "cli.h"
 #include "gateway_router.h"
 #include "gateway_safety_bridge.h"
+#include "gateway_uds_server.h"
 #include "uart.h"
 
 #include <stdarg.h>
@@ -100,6 +101,7 @@ void GatewayTask(void *argument)
         CanCliMonitor_LogRx(&rxMsg);
         GatewayRouter_OnRx(&rxMsg);
         GatewaySafetyBridge_OnRx(&rxMsg);
+        GatewayUdsServer_OnRx(&rxMsg);
     }
 }
 

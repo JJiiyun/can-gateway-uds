@@ -27,6 +27,7 @@ void GatewaySafetyBridge_Init(void);
 void GatewaySafetyBridge_OnRx(const CAN_RxMessage_t *rx_msg);
 void GatewaySafetyBridge_Task10ms(void);
 void GatewaySafetyBridge_GetDiagnostic(GatewaySafetyDiagnostic_t *out_diag);
+void GatewaySafetyBridge_ClearDtc(void);
 
 #ifdef __cplusplus
 }
