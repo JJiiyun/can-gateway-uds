@@ -8,6 +8,7 @@
 #include "can_bsp.h"
 #include "engine_can.h"
 #include "protocol_ids.h"
+#include "sim_bridge.h"
 
 typedef enum
 {

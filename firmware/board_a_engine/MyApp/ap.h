@@ -6,7 +6,7 @@
 #include "cli_cmd.h"
 #include "engine_sim.h"
 #include "rx_debug.h"
-
+#include "sim_bridge.h"  // 
 void apInit(void);
 void apMain(void);
 

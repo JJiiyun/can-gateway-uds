@@ -13,27 +13,27 @@
 #define ENG_PERIOD_MODEL_MS             50U
 #define ENG_PERIOD_COOLANT_MODEL_MS     1000U
 
-/* ============================================================
- * Engine Model Config
- * ============================================================ */
+ /* ============================================================
+  * Engine Model Config
+  * ============================================================ */
 
 #define ENGINE_RPM_IDLE                 800U
 #define ENGINE_RPM_MAX                  6000U
-#define ENGINE_SPEED_MAX                130U
+#define ENGINE_SPEED_MAX                240U
 #define ENGINE_RPM_WARN_THRESHOLD       5000U
 
-/* ============================================================
- * Coolant Model Config
- * ============================================================ */
+  /* ============================================================
+   * Coolant Model Config
+   * ============================================================ */
 
 #define ENGINE_COOLANT_INIT             70U
 #define ENGINE_COOLANT_MAX              115U
 #define ENGINE_COOLANT_WARN_THRESHOLD   105U
 #define ENGINE_COOLANT_CAN_FIXED_VALUE  90U
 
-/* ============================================================
- * ADC / Pedal Config
- * ============================================================ */
+   /* ============================================================
+    * ADC / Pedal Config
+    * ============================================================ */
 
 #define ADC_MAX_VALUE                   4095U
 #define ADC_FILTER_SHIFT                3U
@@ -45,9 +45,9 @@
 
 #define BRAKE_EFFECT_PERCENT            35U
 
-/* ============================================================
- * Static Variables
- * ============================================================ */
+    /* ============================================================
+     * Static Variables
+     * ============================================================ */
 
 static EngineSimStatus_t engine = {
     .mode = ENGINE_MODE_ADC,
@@ -90,7 +90,7 @@ static void EngineSim_UpdateInput(void);
 static void EngineSim_UpdatePhysics(void);
 static void EngineSim_UpdateCoolant(void);
 
-static void EngineSim_PutU16LE(uint8_t *data, uint8_t idx, uint16_t value);
+static void EngineSim_PutU16LE(uint8_t* data, uint8_t idx, uint16_t value);
 
 static uint16_t EngineSim_EncodeRpmRaw(uint16_t rpm);
 static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed);
@@ -177,7 +177,7 @@ void EngineSim_SetBrake(uint8_t brake)
     EngineSim_UpdateLiveDebug();
 }
 
-void EngineSim_GetStatus(EngineSimStatus_t *status)
+void EngineSim_GetStatus(EngineSimStatus_t* status)
 {
     if (status == NULL)
         return;
@@ -191,7 +191,7 @@ void EngineSim_GetStatus(EngineSimStatus_t *status)
     status->tx_count = engine.tx_count;
 }
 
-const char *EngineSim_GetModeString(EngineMode_t mode)
+const char* EngineSim_GetModeString(EngineMode_t mode)
 {
     switch (mode)
     {
@@ -252,7 +252,7 @@ static uint8_t EngineSim_MapPedalPercent(uint8_t percent, uint8_t deadzone)
         return 100U;
 
     return (uint8_t)(((uint32_t)(percent - deadzone) * 100U) /
-                     (PEDAL_MAX_CLAMP_PERCENT - deadzone));
+        (PEDAL_MAX_CLAMP_PERCENT - deadzone));
 }
 
 static uint8_t EngineSim_BrakeCurve(uint8_t brake)
@@ -387,7 +387,7 @@ static void EngineSim_UpdateCoolant(void)
  * CAN Encoding Helpers
  * ============================================================ */
 
-static void EngineSim_PutU16LE(uint8_t *data, uint8_t idx, uint16_t value)
+static void EngineSim_PutU16LE(uint8_t* data, uint8_t idx, uint16_t value)
 {
     data[idx] = (uint8_t)(value & 0xFFU);
     data[idx + 1U] = (uint8_t)((value >> 8) & 0xFFU);
@@ -413,12 +413,12 @@ static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed)
      * 예시 프레임:
      * 08 00 20 4E 00 00 00 00
      *
-     * byte[2]~byte[3] = 0x4E20 = 20000
-     * 20000 / 160 = 125km/h
+     * 현재 계기판은 speed * 160으로 보내면 실제 표시가 2배로 나타남.
+     * 예: 시뮬레이션 20km/h -> 계기판 40km/h
      *
-     * 따라서 우선 speed * 160으로 둠.
+     * 따라서 이 계기판 기준으로 raw = speed * 80으로 둠.
      */
-    return (uint16_t)(speed * 160U);
+    return (uint16_t)(speed * 80U);
 }
 
 static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed)
@@ -427,10 +427,10 @@ static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed)
      * 0x5A0
      * byte[2] : 속도계 바늘 값
      *
-     * 현재 speed가 0~130 범위라서 그대로 넣음.
+     * 현재 계기판은 이 값을 2km/h 단위처럼 표시하므로
+     * 시뮬레이션 speed의 절반 값을 넣음.
      */
-    if (speed > 255U)
-        speed = 255U;
+    speed /= 2U;
 
     return (uint8_t)speed;
 }
@@ -450,8 +450,8 @@ static void EngineSim_SendClusterRpm(void)
     EngineSim_PutU16LE(data, CAN_RPM_RAW_L_IDX, rpm_raw);
 
     HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_RPM,
-                                         data,
-                                         CAN_CLUSTER_DLC);
+        data,
+        CAN_CLUSTER_DLC);
 
     if (ret == HAL_OK)
     {
@@ -468,8 +468,8 @@ static void EngineSim_SendIgnOnStatus(void)
     data[CAN_IGN_STATUS_IDX] = CAN_IGN_STATUS_IGN_ON_MASK;
 
     HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_IGN_STATUS,
-                                         data,
-                                         CAN_CLUSTER_DLC);
+        data,
+        CAN_CLUSTER_DLC);
 
     if (ret == HAL_OK)
     {
@@ -490,8 +490,8 @@ static void EngineSim_SendClusterSpeed1A0(void)
     EngineSim_PutU16LE(data, CAN_SPEED_1A0_RAW_L_IDX, speed_raw);
 
     HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_SPEED_1A0,
-                                         data,
-                                         CAN_CLUSTER_DLC);
+        data,
+        CAN_CLUSTER_DLC);
 
     if (ret == HAL_OK)
     {
@@ -508,8 +508,8 @@ static void EngineSim_SendClusterSpeed5A0(void)
     data[CAN_SPEED_5A0_VALUE_IDX] = EngineSim_EncodeSpeed5A0Value(engine.speed);
 
     HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_SPEED_5A0,
-                                         data,
-                                         CAN_CLUSTER_DLC);
+        data,
+        CAN_CLUSTER_DLC);
 
     if (ret == HAL_OK)
     {
@@ -526,8 +526,8 @@ static void EngineSim_SendClusterCoolant(void)
     data[CAN_COOLANT_VALUE_IDX] = ENGINE_COOLANT_CAN_FIXED_VALUE;
 
     HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_COOLANT,
-                                         data,
-                                         CAN_CLUSTER_DLC);
+        data,
+        CAN_CLUSTER_DLC);
 
     if (ret == HAL_OK)
     {
@@ -539,7 +539,7 @@ static void EngineSim_SendClusterCoolant(void)
  * FreeRTOS Task
  * ============================================================ */
 
-void EngineSim_Task(void *argument)
+void EngineSim_Task(void* argument)
 {
     (void)argument;
 
