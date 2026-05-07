@@ -17,6 +17,7 @@ typedef struct {
     uint8_t rear_distance_cm;
     uint8_t active_fault_bitmap;
     uint8_t dtc_bitmap;
+    uint8_t gong_flags;
     uint8_t speed_kmh;
     uint8_t alive;
     uint32_t last_rx_tick;
@@ -26,7 +27,6 @@ void GatewaySafetyBridge_Init(void);
 void GatewaySafetyBridge_OnRx(const CAN_RxMessage_t *rx_msg);
 void GatewaySafetyBridge_Task10ms(void);
 void GatewaySafetyBridge_GetDiagnostic(GatewaySafetyDiagnostic_t *out_diag);
-void GatewaySafetyBridge_ClearDtc(void);
 
 #ifdef __cplusplus
 }
