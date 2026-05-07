@@ -1,69 +1,62 @@
 # Board D - Turn Signal ECU
 
-Board D는 좌/우 방향지시등 입력만 담당합니다. 하이빔, 도어, 안개등 같은 body 기능은 이 보드에서 제거했습니다.
+Board D is the turn-signal ECU. It only owns left/right turn input and `0x531` Turn Status transmission. It does not generate RPM, speed, coolant, ADAS, door, high-beam, fog-lamp, or body-status frames.
 
-## 역할 요약
+## Current Contract
 
-| 구분 | 내용 |
+| Item | Value |
 |---|---|
-| 담당 | Left/Right 방향지시등 버튼 입력 |
-| 참조 | IGN ON 상태 |
-| 송신 | `0x531` 방향지시등 프레임만 송신 |
-| 송신하지 않음 | `0x635` body 상태, 하이빔, 도어, 안개등, RPM, Speed, Coolant, ADAS |
-| 주기 | 100ms |
+| CAN bus | CAN1 |
+| Reference input | Board A `0x100` IGN Status from CAN |
+| TX frame | `0x531` Turn Status |
+| TX period | 100 ms |
+| Blink period | 500 ms |
+| Integration gate | Send turn status only while IGN is ON, unless CLI override is used |
 
-## 참조 / 수신 데이터
+## CAN RX
 
-Board D는 CAN1에서 IGN 상태만 참조합니다. RPM, Speed, Coolant 값은 읽어도 사용하지 않습니다.
+Board D reads CAN frames through the shared CAN BSP RX queue. It does not read Board A directly.
 
-| CAN ID | DLC | 송신원 | 참조 위치 | 의미 |
+| CAN ID | DLC | Sender | Field | Meaning |
 |---:|---:|---|---|---|
-| `0x100` | 8 | Board A Engine | `byte[5] bit0` | 프로젝트 EngineData의 IGN ON |
-| `0x570` | 8 이상 | Golf6 body 계열 | `byte[0] bit1` | `mBSG_Last` Klemme 15 |
-| `0x572` | 8 이상 | Golf6 ignition 계열 | `byte[0] bit1` | `mZAS_1` Klemme 15 |
+| `0x100` | 8 | Board A | `byte[5] bit0` | IGN ON |
+| `0x570` | >= 1 | Golf 6 compatible body frame | `byte[0] bit1` | Klemme 15 fallback |
+| `0x572` | >= 1 | Golf 6 compatible ignition frame | `byte[0] bit1` | Klemme 15 fallback |
 
-마지막 유효 IGN 프레임 수신 후 500ms가 지나면 IGN OFF로 취급합니다. CLI에서 `body ign on`으로 벤치 테스트용 강제 송신도 가능합니다.
+If the last valid IGN frame is older than 500 ms, Board D treats IGN as OFF.
 
-## 물리 입력
-
-입력은 pull-up입니다. 버튼이 GND에 연결되면 active로 읽습니다.
-
-| 기능 | 기본 핀 | 처리 |
-|---|---|---|
-| Left Turn Button | `PE6` | 누를 때마다 left enable 토글 |
-| Right Turn Button | `PF6` | 누를 때마다 right enable 토글 |
-
-제거된 입력:
-
-| 기능 | 상태 |
-|---|---|
-| Door FL/FR/RL/RR | 사용하지 않음 |
-| High Beam | 사용하지 않음 |
-| Fog Light | 사용하지 않음 |
-
-## 송신 데이터
+## CAN TX
 
 ### `0x531` Turn Status
 
-| 항목 | 값 |
+| Item | Value |
 |---|---|
 | CAN ID | `0x531` |
 | DLC | 8 |
-| 주기 | 100ms |
-| 사용 byte | `byte[2]` |
+| Period | 100 ms |
+| Used byte | `byte[2]` |
 
-| 위치 | 의미 |
+| Byte / Bit | Meaning |
 |---|---|
-| `byte[2] bit0` | Left turn blink 상태 |
-| `byte[2] bit1` | Right turn blink 상태 |
-| `byte[2] bit2` | Hazard 상태. left/right가 동시에 blink 중이면 1 |
-| 나머지 byte/bit | 0 |
+| `byte[2] bit0` | Left turn blink ON |
+| `byte[2] bit1` | Right turn blink ON |
+| `byte[2] bit2` | Hazard ON when left and right blink together |
+| other bits | 0 |
 
-방향지시등은 enable 상태일 때 500ms 기준으로 ON/OFF blink 됩니다.
+Board B's gateway router expects this frame on CAN1 and routes it to CAN2.
+
+## Physical Inputs
+
+Inputs are active low with pull-up. A pressed button connects the pin to GND.
+
+| Function | Default pin | Behavior |
+|---|---|---|
+| Left Turn Button | `PE6` | Toggles left turn enable |
+| Right Turn Button | `PF6` | Toggles right turn enable |
 
 ## UART CLI
 
-기본 연결은 USART3/ST-LINK VCP, 115200 8N1입니다.
+Default UART is USART3 / ST-LINK VCP, 115200 8N1.
 
 ```text
 body mode gpio
@@ -85,16 +78,19 @@ body monitor once
 body reset
 ```
 
-## 확인 포인트
+`body ign auto` uses CAN-derived IGN. `body ign on` and `body ign off` are bench-test overrides.
 
-1. Board A가 `0x100 byte[5] bit0 = 1`을 보내거나 CLI에서 `body ign on`을 설정합니다.
-2. CAN1에서 `0x531`이 DLC 8로 100ms마다 나오는지 확인합니다.
-3. L/R 버튼을 누르면 `0x531 byte[2] bit0/bit1`이 500ms 간격으로 깜빡이는지 확인합니다.
-4. `0x635`는 Board D에서 더 이상 송신되지 않아야 합니다.
+## Verification
 
-## 빌드
+1. Confirm Board A sends CAN1 `0x100` with `byte[5] bit0 = 1`.
+2. Confirm Board D logs or reports IGN ON in `body status`.
+3. Press left/right input and verify CAN1 `0x531` appears every 100 ms.
+4. Verify `byte[2] bit0` and `byte[2] bit1` blink with the 500 ms blink phase.
+5. Verify Board B routes `0x531` from CAN1 to CAN2.
+
+## Build
 
 ```bash
-cmake --preset Debug --fresh -S firmware/board_d_body
-cmake --build firmware/board_d_body/build/Debug --parallel
+cmake --preset Debug --fresh
+cmake --build --preset Debug --parallel
 ```
