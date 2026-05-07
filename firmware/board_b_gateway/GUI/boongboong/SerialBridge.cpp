@@ -297,14 +297,27 @@ void SerialBridge::setStatusText(const QString &text)
 
 void SerialBridge::processLine(const QString &line)
 {
-    if (line.startsWith("[GW]")) {
-        parseGatewayStatus(line);
-        emit gatewayLineReceived(nowString(), line);
+    const int gwIndex = line.indexOf("[GW]");
+    if (gwIndex >= 0) {
+        const QString gatewayLine = line.mid(gwIndex);
+        parseGatewayStatus(gatewayLine);
+        emit gatewayLineReceived(nowString(), gatewayLine);
         return;
     }
 
-    if (line.startsWith("[RX") || line.startsWith("[TX")) {
-        parseFrameLine(line);
+    const int rxIndex = line.indexOf("[RX");
+    const int txIndex = line.indexOf("[TX");
+    int frameIndex = -1;
+    if (rxIndex >= 0 && txIndex >= 0) {
+        frameIndex = qMin(rxIndex, txIndex);
+    } else if (rxIndex >= 0) {
+        frameIndex = rxIndex;
+    } else if (txIndex >= 0) {
+        frameIndex = txIndex;
+    }
+
+    if (frameIndex >= 0) {
+        parseFrameLine(line.mid(frameIndex));
         return;
     }
 
