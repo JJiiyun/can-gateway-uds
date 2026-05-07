@@ -376,6 +376,22 @@ void SerialBridge::parseGatewayStatus(const QString &line)
     m_adasSpeed = valueFor("speed", m_adasSpeed);
     m_adasAlive = valueFor("alive", m_adasAlive);
 
+    const int engineValid = valueFor("eng", -1);
+    if (engineValid >= 0) {
+        m_rpm = valueFor("rpm", m_rpm);
+        m_speed = valueFor("spd1", m_speed);
+        m_coolant = valueFor("coolant", m_coolant);
+        m_ignition = valueFor("ign", m_ignition ? 1 : 0) != 0;
+        m_lastEngineRx = nowString();
+    }
+
+    const int bodyValid = valueFor("body", -1);
+    if (bodyValid >= 0) {
+        m_turnLeft = valueFor("left", m_turnLeft ? 1 : 0) != 0;
+        m_turnRight = valueFor("right", m_turnRight ? 1 : 0) != 0;
+        m_lastBodyRx = nowString();
+    }
+
     m_warning = valueFor("warn", (m_adasRisk >= 2 || m_adasFault != 0) ? 1 : 0) != 0 ||
                 m_adasRisk >= 2 ||
                 m_adasFault != 0;

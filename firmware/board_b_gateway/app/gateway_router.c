@@ -28,6 +28,7 @@ static const GatewayRoute_t s_route_table[] = {
 };
 
 static GatewayRouterStats_t s_stats;
+static GatewayRouterMonitor_t s_monitor;
 
 static CAN_HandleTypeDef *bus_to_handle(uint8_t bus)
 {
@@ -52,9 +53,71 @@ static const GatewayRoute_t *find_route(const CAN_RxMessage_t *rx_msg)
     return NULL;
 }
 
+static uint16_t get_u16_le(const uint8_t *data, uint8_t idx)
+{
+    return (uint16_t)(((uint16_t)data[idx + 1U] << 8) | data[idx]);
+}
+
+static void update_monitor(const CAN_RxMessage_t *rx_msg)
+{
+    uint16_t raw;
+
+    if (rx_msg == NULL || rx_msg->bus != CAN1_PORT || rx_msg->dlc < 3U) {
+        return;
+    }
+
+    switch (rx_msg->id) {
+    case CAN_ID_CLUSTER_RPM:
+        if (rx_msg->dlc >= 4U) {
+            raw = get_u16_le(rx_msg->data, CAN_CLUSTER_RPM_RAW_IDX);
+            s_monitor.rpm = (uint16_t)(raw / CAN_CLUSTER_RPM_SCALE_DIV);
+            s_monitor.engine_valid = 1U;
+        }
+        break;
+
+    case CAN_ID_CLUSTER_SPEED_1A0:
+        if (rx_msg->dlc >= 4U) {
+            raw = get_u16_le(rx_msg->data, CAN_CLUSTER_SPEED_1A0_RAW_IDX);
+            s_monitor.speed_1a0 = (uint16_t)(raw / CAN_CLUSTER_SPEED_1A0_SCALE_DIV);
+            s_monitor.engine_valid = 1U;
+        }
+        break;
+
+    case CAN_ID_CLUSTER_SPEED_5A0:
+        s_monitor.speed_5a0 = rx_msg->data[CAN_CLUSTER_SPEED_5A0_VALUE_IDX];
+        s_monitor.engine_valid = 1U;
+        break;
+
+    case CAN_ID_CLUSTER_COOLANT:
+        if (rx_msg->dlc > CAN_CLUSTER_COOLANT_VALUE_IDX) {
+            s_monitor.coolant = rx_msg->data[CAN_CLUSTER_COOLANT_VALUE_IDX];
+            s_monitor.engine_valid = 1U;
+        }
+        break;
+
+    case 0x100U:
+        if (rx_msg->dlc >= 6U) {
+            s_monitor.ignition_on = (rx_msg->data[5] & 0x01U) != 0U ? 1U : 0U;
+            s_monitor.engine_valid = 1U;
+        }
+        break;
+
+    case CAN_ID_CLUSTER_TURN:
+        s_monitor.turn_left = (rx_msg->data[2] & 0x01U) != 0U ? 1U : 0U;
+        s_monitor.turn_right = (rx_msg->data[2] & 0x02U) != 0U ? 1U : 0U;
+        s_monitor.hazard = (rx_msg->data[2] & 0x04U) != 0U ? 1U : 0U;
+        s_monitor.turn_valid = 1U;
+        break;
+
+    default:
+        break;
+    }
+}
+
 void GatewayRouter_Init(void)
 {
     memset(&s_stats, 0, sizeof(s_stats));
+    memset(&s_monitor, 0, sizeof(s_monitor));
 }
 
 void GatewayRouter_OnRx(const CAN_RxMessage_t *rx_msg)
@@ -68,6 +131,8 @@ void GatewayRouter_OnRx(const CAN_RxMessage_t *rx_msg)
         s_stats.ignored_count++;
         return;
     }
+
+    update_monitor(rx_msg);
 
     route = find_route(rx_msg);
     if (route == NULL) {
@@ -98,5 +163,12 @@ void GatewayRouter_GetStats(GatewayRouterStats_t *out_stats)
 {
     if (out_stats != NULL) {
         *out_stats = s_stats;
+    }
+}
+
+void GatewayRouter_GetMonitor(GatewayRouterMonitor_t *out_monitor)
+{
+    if (out_monitor != NULL) {
+        *out_monitor = s_monitor;
     }
 }

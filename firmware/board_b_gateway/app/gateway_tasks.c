@@ -131,14 +131,18 @@ void LoggerTask(void *argument)
         if (s_status_log_enabled != 0U) {
             GatewaySafetyDiagnostic_t safety;
             GatewayRouterStats_t router;
+            GatewayRouterMonitor_t monitor;
 
             GatewaySafetyBridge_GetDiagnostic(&safety);
             GatewayRouter_GetStats(&router);
+            GatewayRouter_GetMonitor(&monitor);
 
             log_printf("[GW] RX1=%lu TX1=%lu RX2=%lu TX2=%lu busy=%lu err=%lu "
                        "route=%lu ok=%lu fail=%lu ignore=%lu "
                        "adas=%u risk=%u fault=0x%02X dtc=0x%02X gong=0x%02X "
-                       "front=%u rear=%u speed=%u alive=%u\r\n",
+                       "front=%u rear=%u speed=%u alive=%u "
+                       "eng=%u rpm=%u spd1=%u spd5=%u coolant=%u ign=%u "
+                       "body=%u left=%u right=%u hazard=%u\r\n",
                        (unsigned long)can1RxCount,
                        (unsigned long)can1TxCount,
                        (unsigned long)can2RxCount,
@@ -157,7 +161,17 @@ void LoggerTask(void *argument)
                        (unsigned int)safety.front_distance_cm,
                        (unsigned int)safety.rear_distance_cm,
                        (unsigned int)safety.speed_kmh,
-                       (unsigned int)safety.alive);
+                       (unsigned int)safety.alive,
+                       (unsigned int)monitor.engine_valid,
+                       (unsigned int)monitor.rpm,
+                       (unsigned int)monitor.speed_1a0,
+                       (unsigned int)monitor.speed_5a0,
+                       (unsigned int)monitor.coolant,
+                       (unsigned int)monitor.ignition_on,
+                       (unsigned int)monitor.turn_valid,
+                       (unsigned int)monitor.turn_left,
+                       (unsigned int)monitor.turn_right,
+                       (unsigned int)monitor.hazard);
         }
         osDelay(1000U);
     }
