@@ -416,11 +416,11 @@ static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed)
      * 예시 프레임:
      * 08 00 20 4E 00 00 00 00
      *
-     * 현재 계기판은 speed * 160으로 보내면 실제 표시가 2배로 나타남.
-     * 예: 시뮬레이션 20km/h -> 계기판 40km/h
+     * byte[2]~byte[3] = speed * 80
      *
-     * 따라서 이 계기판 기준으로 raw = speed * 80으로 둠.
+     * Gateway/ADAS/Qt monitor all decode this frame with raw / 80.
      */
+    return (uint16_t)(speed * 80U);
     return (uint16_t)(speed * 80U);
 }
 

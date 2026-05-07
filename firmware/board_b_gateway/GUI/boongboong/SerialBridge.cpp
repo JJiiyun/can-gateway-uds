@@ -508,7 +508,7 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
     if (id == "0x1A0") {
         QString decoded = "cluster speed frame";
         if (bytes.size() >= 4) {
-            const int clusterSpeed = ((bytes[2] | (bytes[3] << 8)) / 160);
+            const int clusterSpeed = ((bytes[2] | (bytes[3] << 8)) / 80);
             m_speed = clusterSpeed;
             m_lastEngineRx = nowString();
             decoded = QString("cluster_speed=%1 km/h").arg(clusterSpeed);
