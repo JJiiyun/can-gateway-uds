@@ -5,6 +5,7 @@
  * ============================================================ */
 
 #define ENG_PERIOD_RPM_TX_MS            50U
+#define ENG_PERIOD_IGN_TX_MS            50U
 #define ENG_PERIOD_SPEED_1A0_TX_MS      50U
 #define ENG_PERIOD_SPEED_5A0_TX_MS      50U
 #define ENG_PERIOD_COOLANT_TX_MS        100U
@@ -96,6 +97,7 @@ static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed);
 static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed);
 
 static void EngineSim_SendClusterRpm(void);
+static void EngineSim_SendIgnOnStatus(void);
 static void EngineSim_SendClusterSpeed1A0(void);
 static void EngineSim_SendClusterSpeed5A0(void);
 static void EngineSim_SendClusterCoolant(void);
@@ -457,6 +459,24 @@ static void EngineSim_SendClusterRpm(void)
     }
 }
 
+static void EngineSim_SendIgnOnStatus(void)
+{
+    uint8_t data[CAN_CLUSTER_DLC] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+
+    data[CAN_IGN_STATUS_IDX] = CAN_IGN_STATUS_IGN_ON_MASK;
+
+    HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_IGN_STATUS,
+                                         data,
+                                         CAN_CLUSTER_DLC);
+
+    if (ret == HAL_OK)
+    {
+        engine.tx_count++;
+    }
+}
+
 static void EngineSim_SendClusterSpeed1A0(void)
 {
     uint8_t data[CAN_CLUSTER_DLC] = {
@@ -526,6 +546,7 @@ void EngineSim_Task(void *argument)
     uint32_t now = osKernelGetTickCount();
 
     uint32_t t_rpm_tx = now - ENG_PERIOD_RPM_TX_MS;
+    uint32_t t_ign_tx = now - (ENG_PERIOD_IGN_TX_MS - 20U);
     uint32_t t_speed_1a0_tx = now - (ENG_PERIOD_SPEED_1A0_TX_MS - 5U);
     uint32_t t_speed_5a0_tx = now - (ENG_PERIOD_SPEED_5A0_TX_MS - 10U);
     uint32_t t_coolant_tx = now - (ENG_PERIOD_COOLANT_TX_MS - 15U);
@@ -555,6 +576,12 @@ void EngineSim_Task(void *argument)
         {
             EngineSim_SendClusterRpm();
             t_rpm_tx = now;
+        }
+
+        if ((now - t_ign_tx) >= ENG_PERIOD_IGN_TX_MS)
+        {
+            EngineSim_SendIgnOnStatus();
+            t_ign_tx = now;
         }
 
         if ((now - t_speed_1a0_tx) >= ENG_PERIOD_SPEED_1A0_TX_MS)

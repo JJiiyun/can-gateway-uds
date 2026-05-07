@@ -8,12 +8,24 @@
  * Board A EngineSim -> CAN Bus
  * ============================================================ */
 
+#define CAN_ID_CLUSTER_IGN_STATUS       0x100U
 #define CAN_ID_CLUSTER_RPM              0x280U
 #define CAN_ID_CLUSTER_SPEED_1A0        0x1A0U
 #define CAN_ID_CLUSTER_SPEED_5A0        0x5A0U
 #define CAN_ID_CLUSTER_COOLANT          0x288U
 
 #define CAN_CLUSTER_DLC                 8U
+
+/* ============================================================
+ * 0x100 IGN Status Frame
+ *
+ * ID    : 0x100
+ * DLC   : 8
+ * byte5 : bit0 = IGN ON
+ * ============================================================ */
+
+#define CAN_IGN_STATUS_IDX              5U
+#define CAN_IGN_STATUS_IGN_ON_MASK      0x01U
 
 /* ============================================================
  * 0x280 RPM Frame
