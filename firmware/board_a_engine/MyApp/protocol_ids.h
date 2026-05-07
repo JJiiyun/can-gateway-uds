@@ -13,8 +13,10 @@
 #define CAN_ID_CLUSTER_SPEED_1A0        0x1A0U
 #define CAN_ID_CLUSTER_SPEED_5A0        0x5A0U
 #define CAN_ID_CLUSTER_COOLANT          0x288U
+#define CAN_ID_ENGINE_WARNING_STATUS    0x481U
 
 #define CAN_CLUSTER_DLC                 8U
+#define CAN_ENGINE_WARNING_DLC          8U
 
 /* ============================================================
  * 0x100 IGN Status Frame
@@ -72,6 +74,27 @@
  * ============================================================ */
 
 #define CAN_COOLANT_VALUE_IDX           1U
+
+/* ============================================================
+ * 0x481 Engine Warning Status Frame
+ *
+ * byte0 : bit0 = RPM warning
+ *         bit1 = Coolant warning
+ *         bit2 = General warning
+ * byte1 : Coolant value
+ * byte2~3 : RPM value, little-endian
+ * byte7 : Alive counter
+ * ============================================================ */
+
+#define CAN_ENGINE_WARNING_FLAGS_IDX        0U
+#define CAN_ENGINE_WARNING_COOLANT_IDX      1U
+#define CAN_ENGINE_WARNING_RPM_L_IDX        2U
+#define CAN_ENGINE_WARNING_RPM_H_IDX        3U
+#define CAN_ENGINE_WARNING_ALIVE_IDX        7U
+
+#define CAN_ENGINE_WARNING_RPM_MASK         (1U << 0)
+#define CAN_ENGINE_WARNING_COOLANT_MASK     (1U << 1)
+#define CAN_ENGINE_WARNING_GENERAL_MASK     (1U << 2)
 
 /* ============================================================
  * UDS Diagnostic IDs

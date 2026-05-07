@@ -9,6 +9,7 @@
 #define ENG_PERIOD_SPEED_1A0_TX_MS      50U
 #define ENG_PERIOD_SPEED_5A0_TX_MS      50U
 #define ENG_PERIOD_COOLANT_TX_MS        100U
+#define ENG_PERIOD_WARNING_TX_MS        100U
 
 #define ENG_PERIOD_MODEL_MS             50U
 #define ENG_PERIOD_COOLANT_MODEL_MS     1000U
@@ -29,7 +30,6 @@
 #define ENGINE_COOLANT_INIT             70U
 #define ENGINE_COOLANT_MAX              115U
 #define ENGINE_COOLANT_WARN_THRESHOLD   105U
-#define ENGINE_COOLANT_CAN_FIXED_VALUE  90U
 
    /* ============================================================
     * ADC / Pedal Config
@@ -62,6 +62,7 @@ static EngineSimStatus_t engine = {
 static uint8_t adc_filter_init = 0;
 static uint16_t throttle_adc_filtered = 0;
 static uint16_t brake_adc_filtered = 0;
+static uint8_t warning_alive = 0;
 
 /* ============================================================
  * Live Debug Variables
@@ -95,12 +96,14 @@ static void EngineSim_PutU16LE(uint8_t* data, uint8_t idx, uint16_t value);
 static uint16_t EngineSim_EncodeRpmRaw(uint16_t rpm);
 static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed);
 static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed);
+static uint8_t EngineSim_GetWarningFlags(void);
 
 static void EngineSim_SendClusterRpm(void);
 static void EngineSim_SendIgnOnStatus(void);
 static void EngineSim_SendClusterSpeed1A0(void);
 static void EngineSim_SendClusterSpeed5A0(void);
 static void EngineSim_SendClusterCoolant(void);
+static void EngineSim_SendWarningStatus(void);
 
 /* ============================================================
  * Public Functions
@@ -108,8 +111,6 @@ static void EngineSim_SendClusterCoolant(void);
 
 void EngineSim_Init(void)
 {
-    CAN_BSP_Init();
-
     engine.mode = ENGINE_MODE_ADC;
     engine.throttle = 0;
     engine.brake = 0;
@@ -121,6 +122,7 @@ void EngineSim_Init(void)
     adc_filter_init = 0;
     throttle_adc_filtered = 0;
     brake_adc_filtered = 0;
+    warning_alive = 0;
 
     EngineSim_UpdateLiveDebug();
 }
@@ -138,6 +140,7 @@ void EngineSim_Reset(void)
     adc_filter_init = 0;
     throttle_adc_filtered = 0;
     brake_adc_filtered = 0;
+    warning_alive = 0;
 
     EngineSim_UpdateLiveDebug();
 }
@@ -435,6 +438,28 @@ static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed)
     return (uint8_t)speed;
 }
 
+static uint8_t EngineSim_GetWarningFlags(void)
+{
+    uint8_t flags = 0U;
+
+    if (engine.rpm >= ENGINE_RPM_WARN_THRESHOLD)
+    {
+        flags |= CAN_ENGINE_WARNING_RPM_MASK;
+    }
+
+    if (engine.coolant >= ENGINE_COOLANT_WARN_THRESHOLD)
+    {
+        flags |= CAN_ENGINE_WARNING_COOLANT_MASK;
+    }
+
+    if (flags != 0U)
+    {
+        flags |= CAN_ENGINE_WARNING_GENERAL_MASK;
+    }
+
+    return flags;
+}
+
 /* ============================================================
  * CAN TX Functions
  * ============================================================ */
@@ -523,11 +548,33 @@ static void EngineSim_SendClusterCoolant(void)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
 
-    data[CAN_COOLANT_VALUE_IDX] = ENGINE_COOLANT_CAN_FIXED_VALUE;
+    data[CAN_COOLANT_VALUE_IDX] = engine.coolant;
 
     HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_COOLANT,
         data,
         CAN_CLUSTER_DLC);
+
+    if (ret == HAL_OK)
+    {
+        engine.tx_count++;
+    }
+}
+
+static void EngineSim_SendWarningStatus(void)
+{
+    uint8_t data[CAN_ENGINE_WARNING_DLC] = {
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+
+    data[CAN_ENGINE_WARNING_FLAGS_IDX] = EngineSim_GetWarningFlags();
+    data[CAN_ENGINE_WARNING_COOLANT_IDX] = engine.coolant;
+    data[CAN_ENGINE_WARNING_ALIVE_IDX] = warning_alive++;
+
+    EngineSim_PutU16LE(data, CAN_ENGINE_WARNING_RPM_L_IDX, engine.rpm);
+
+    HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_ENGINE_WARNING_STATUS,
+        data,
+        CAN_ENGINE_WARNING_DLC);
 
     if (ret == HAL_OK)
     {
@@ -550,6 +597,7 @@ void EngineSim_Task(void* argument)
     uint32_t t_speed_1a0_tx = now - (ENG_PERIOD_SPEED_1A0_TX_MS - 5U);
     uint32_t t_speed_5a0_tx = now - (ENG_PERIOD_SPEED_5A0_TX_MS - 10U);
     uint32_t t_coolant_tx = now - (ENG_PERIOD_COOLANT_TX_MS - 15U);
+    uint32_t t_warning_tx = now - (ENG_PERIOD_WARNING_TX_MS - 25U);
 
     uint32_t t_model = now - ENG_PERIOD_MODEL_MS;
     uint32_t t_coolant_model = now - ENG_PERIOD_COOLANT_MODEL_MS;
@@ -600,6 +648,12 @@ void EngineSim_Task(void* argument)
         {
             EngineSim_SendClusterCoolant();
             t_coolant_tx = now;
+        }
+
+        if ((now - t_warning_tx) >= ENG_PERIOD_WARNING_TX_MS)
+        {
+            EngineSim_SendWarningStatus();
+            t_warning_tx = now;
         }
 
         EngineSim_UpdateLiveDebug();

@@ -9,10 +9,9 @@ void StartDefaultTask(void *argument)
     cliInit();
     CliCmd_Init(); // 프로젝트 전용 CLI 명령어 등록
 
-    // 3. 비즈니스 로직 초기화
-    EngineSim_Init();
-
+    // 3. CAN 드라이버 및 비즈니스 로직 초기화
     CAN_BSP_Init();
+    EngineSim_Init();
 
     // 화면 클리어 및 시작 메시지 출력
     uartPrintf(0, "\033[2J\033[H");
