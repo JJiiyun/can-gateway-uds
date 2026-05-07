@@ -51,8 +51,9 @@ Inputs are active low with pull-up. A pressed button connects the pin to GND.
 
 | Function | Default pin | Behavior |
 |---|---|---|
-| Left Turn Button | `PE6` | Toggles left turn enable |
-| Right Turn Button | `PF6` | Toggles right turn enable |
+| Left Turn Button | `PA3` (A0) | Toggles left turn enable |
+| Right Turn Button | `PC0` (A1) | Toggles right turn enable |
+| Hazard Button | `PC3` (A2) | Toggles hazard (both) enable |
 
 ## UART CLI
 
@@ -68,6 +69,7 @@ body ign off
 
 body turn left 1
 body turn right 0
+body turn hazard 1
 body turn both 0
 
 body all off
@@ -78,7 +80,7 @@ body monitor once
 body reset
 ```
 
-`body ign auto` uses CAN-derived IGN. `body ign on` and `body ign off` are bench-test overrides.
+`body ign auto` uses CAN-derived IGN. `body ign on` and `body ign off` are bench-test overrides. The periodic `[BCM] INPUT` log plus `body status` and `body monitor` include raw GPIO state, where `1` means the active-low switch input is currently pressed.
 
 ## Verification
 

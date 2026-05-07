@@ -35,9 +35,13 @@ void BCM_Signal_BuildTurnFrame(const BcmSignal_TurnStatus_t *status,
 
     init_frame(out_msg, CAN_ID_CLUSTER_TURN_STATUS);
 
-    left_on = status->input.turn_left_enabled && status->left_blink_on;
-    right_on = status->input.turn_right_enabled && status->right_blink_on;
-    hazard_on = status->input.hazard_enabled;
+    left_on = ((status->input.turn_left_enabled ||
+                status->input.hazard_enabled) &&
+               status->left_blink_on);
+    right_on = ((status->input.turn_right_enabled ||
+                 status->input.hazard_enabled) &&
+                status->right_blink_on);
+    hazard_on = left_on && right_on;
 
     set_mask(&out_msg->data[CAN_CLUSTER_531_TURN_IDX],
              CLUSTER_531_TURN_LEFT_BIT,

@@ -64,13 +64,19 @@ static const char *ign_override_string(void)
 static void print_monitor_line(void)
 {
     BcmInput_State_t input;
+    BcmInput_State_t raw;
 
     BCM_Input_GetState(&input);
-    cliPrintf("BODY mode=%s ign=%u left=%u right=%u tx=%lu rx=%lu\r\n",
+    BCM_Input_GetRawState(&raw);
+    cliPrintf("BODY mode=%s ign=%u raw=L%u/R%u/H%u turn=L%u/R%u/H%u tx=%lu rx=%lu\r\n",
               BCM_Input_GetModeString(),
               (unsigned)BCM_Body_IsIgnOn(),
+              (unsigned)raw.turn_left_enabled,
+              (unsigned)raw.turn_right_enabled,
+              (unsigned)raw.hazard_enabled,
               (unsigned)input.turn_left_enabled,
               (unsigned)input.turn_right_enabled,
+              (unsigned)input.hazard_enabled,
               (unsigned long)BCM_Body_GetTxCount(),
               (unsigned long)BCM_Body_GetRxCount());
 }
@@ -78,17 +84,24 @@ static void print_monitor_line(void)
 static void print_status(void)
 {
     BcmInput_State_t input;
+    BcmInput_State_t raw;
 
     BCM_Input_GetState(&input);
+    BCM_Input_GetRawState(&raw);
 
     cliPrintf("\r\n[BCM Turn Status]\r\n");
     cliPrintf("mode        : %s\r\n", BCM_Input_GetModeString());
     cliPrintf("ign         : %u (%s)\r\n",
               (unsigned)BCM_Body_IsIgnOn(),
               ign_override_string());
-    cliPrintf("turn        : left=%u right=%u\r\n",
+    cliPrintf("gpio_raw    : left=%u right=%u hazard=%u\r\n",
+              (unsigned)raw.turn_left_enabled,
+              (unsigned)raw.turn_right_enabled,
+              (unsigned)raw.hazard_enabled);
+    cliPrintf("turn        : left=%u right=%u hazard=%u\r\n",
               (unsigned)input.turn_left_enabled,
-              (unsigned)input.turn_right_enabled);
+              (unsigned)input.turn_right_enabled,
+              (unsigned)input.hazard_enabled);
     cliPrintf("tx_count    : %lu\r\n", (unsigned long)BCM_Body_GetTxCount());
     cliPrintf("rx_count    : %lu\r\n", (unsigned long)BCM_Body_GetRxCount());
     cliPrintf("monitor     : %s, interval=%lu ms\r\n",
@@ -102,7 +115,7 @@ static void print_usage(void)
     cliPrintf("--------BCM Turn Commands---------\r\n");
     cliPrintf("body mode gpio|uart\r\n");
     cliPrintf("body ign auto|on|off\r\n");
-    cliPrintf("body turn left|right|both <0|1>\r\n");
+    cliPrintf("body turn left|right|hazard|both <0|1>\r\n");
     cliPrintf("body all off\r\n");
     cliPrintf("body reset\r\n");
     cliPrintf("body status\r\n");
@@ -161,7 +174,7 @@ static void handle_turn(uint8_t argc, char *argv[])
     uint8_t value;
 
     if (argc < 4 || !parse_bool_arg(argv[3], &value)) {
-        cliPrintf("usage: body turn left|right|both <0|1>\r\n");
+        cliPrintf("usage: body turn left|right|hazard|both <0|1>\r\n");
         return;
     }
 
@@ -173,12 +186,15 @@ static void handle_turn(uint8_t argc, char *argv[])
     } else if (strcmp(argv[2], "right") == 0 || strcmp(argv[2], "r") == 0) {
         BCM_Input_SetField(BCM_INPUT_FIELD_TURN_RIGHT, value);
         cliPrintf("turn right = %u\r\n", (unsigned)value);
+    } else if (strcmp(argv[2], "hazard") == 0 || strcmp(argv[2], "h") == 0) {
+        BCM_Input_SetField(BCM_INPUT_FIELD_HAZARD, value);
+        cliPrintf("turn hazard = %u\r\n", (unsigned)value);
     } else if (strcmp(argv[2], "both") == 0 || strcmp(argv[2], "all") == 0) {
         BCM_Input_SetField(BCM_INPUT_FIELD_TURN_LEFT, value);
         BCM_Input_SetField(BCM_INPUT_FIELD_TURN_RIGHT, value);
         cliPrintf("turn both = %u\r\n", (unsigned)value);
     } else {
-        cliPrintf("usage: body turn left|right|both <0|1>\r\n");
+        cliPrintf("usage: body turn left|right|hazard|both <0|1>\r\n");
     }
 }
 

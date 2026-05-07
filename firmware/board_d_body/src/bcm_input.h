@@ -32,6 +32,7 @@ typedef struct {
 void BCM_Input_Init(void);
 void BCM_Input_Poll(void);
 void BCM_Input_GetState(BcmInput_State_t *out_state);
+void BCM_Input_GetRawState(BcmInput_State_t *out_raw_state);
 void BCM_Input_SetState(const BcmInput_State_t *state);
 void BCM_Input_SetField(BcmInput_Field_t field, uint8_t active);
 void BCM_Input_ClearAll(void);

@@ -29,6 +29,10 @@
 #define PERIOD_BODY_STATUS_MS 100U
 #endif
 
+#ifndef PERIOD_INPUT_DIAG_LOG_MS
+#define PERIOD_INPUT_DIAG_LOG_MS 250U
+#endif
+
 #if defined(__GNUC__)
 #define BCM_NOINLINE __attribute__((noinline))
 #else
@@ -40,6 +44,8 @@ static osThreadId_t s_input_task_handle;
 static osThreadId_t s_ign_rx_task_handle;
 static uint8_t s_input_log_valid;
 static BcmInput_State_t s_last_logged_input;
+static BcmInput_State_t s_last_logged_raw;
+static uint32_t s_last_input_diag_tick;
 static volatile int8_t s_ign_override = -1;
 
 static const osThreadAttr_t s_input_task_attributes = {
@@ -70,18 +76,34 @@ static uint8_t should_transmit(void)
 static uint8_t input_changed(const BcmInput_State_t *a, const BcmInput_State_t *b)
 {
     return a->turn_left_enabled != b->turn_left_enabled ||
-           a->turn_right_enabled != b->turn_right_enabled;
+           a->turn_right_enabled != b->turn_right_enabled ||
+           a->hazard_enabled != b->hazard_enabled;
 }
 
 static void log_input_if_changed(const BcmInput_State_t *input)
 {
-    if (!s_input_log_valid || input_changed(input, &s_last_logged_input)) {
+    BcmInput_State_t raw;
+    uint32_t now = HAL_GetTick();
+    uint8_t due = ((uint32_t)(now - s_last_input_diag_tick) >= PERIOD_INPUT_DIAG_LOG_MS) ? 1U : 0U;
+
+    BCM_Input_GetRawState(&raw);
+
+    if (!s_input_log_valid ||
+        input_changed(input, &s_last_logged_input) ||
+        input_changed(&raw, &s_last_logged_raw) ||
+        due) {
         uartPrintf(0,
-                   "[BCM] INPUT turn=L%u/R%u\r\n",
+                   "[BCM] INPUT raw=L%u/R%u/H%u turn=L%u/R%u/H%u\r\n",
+                   raw.turn_left_enabled,
+                   raw.turn_right_enabled,
+                   raw.hazard_enabled,
                    input->turn_left_enabled,
-                   input->turn_right_enabled);
+                   input->turn_right_enabled,
+                   input->hazard_enabled);
+        s_last_logged_raw = raw;
         s_last_logged_input = *input;
         s_input_log_valid = 1U;
+        s_last_input_diag_tick = now;
     }
 }
 

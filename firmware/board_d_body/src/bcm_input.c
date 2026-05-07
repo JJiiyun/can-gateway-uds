@@ -20,16 +20,16 @@
 #endif
 
 #ifndef BCM_TURN_LEFT_GPIO_Port
-#define BCM_TURN_LEFT_GPIO_Port    GPIOE
-#define BCM_TURN_LEFT_Pin          GPIO_PIN_6
+#define BCM_TURN_LEFT_GPIO_Port    GPIOA
+#define BCM_TURN_LEFT_Pin          GPIO_PIN_3
 #endif
 #ifndef BCM_TURN_RIGHT_GPIO_Port
-#define BCM_TURN_RIGHT_GPIO_Port   GPIOF
-#define BCM_TURN_RIGHT_Pin         GPIO_PIN_6
+#define BCM_TURN_RIGHT_GPIO_Port   GPIOC
+#define BCM_TURN_RIGHT_Pin         GPIO_PIN_0
 #endif
 #ifndef BCM_HAZARD_GPIO_Port
-#define BCM_HAZARD_GPIO_Port       GPIOE
-#define BCM_HAZARD_Pin             GPIO_PIN_7
+#define BCM_HAZARD_GPIO_Port       GPIOC
+#define BCM_HAZARD_Pin             GPIO_PIN_3
 #endif
 
 #define BCM_BUTTON_DEBOUNCE_SAMPLES 2U
@@ -143,6 +143,20 @@ void BCM_Input_GetState(BcmInput_State_t *out_state)
     if (out_state != NULL) {
         *out_state = s_state;
     }
+}
+
+void BCM_Input_GetRawState(BcmInput_State_t *out_raw_state)
+{
+    if (out_raw_state == NULL) {
+        return;
+    }
+
+    out_raw_state->turn_left_enabled =
+        read_input(BCM_TURN_LEFT_GPIO_Port, BCM_TURN_LEFT_Pin);
+    out_raw_state->turn_right_enabled =
+        read_input(BCM_TURN_RIGHT_GPIO_Port, BCM_TURN_RIGHT_Pin);
+    out_raw_state->hazard_enabled =
+        read_input(BCM_HAZARD_GPIO_Port, BCM_HAZARD_Pin);
 }
 
 void BCM_Input_SetState(const BcmInput_State_t *state)
