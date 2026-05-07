@@ -27,6 +27,10 @@
 #define BCM_TURN_RIGHT_GPIO_Port   GPIOF
 #define BCM_TURN_RIGHT_Pin         GPIO_PIN_6
 #endif
+#ifndef BCM_HAZARD_GPIO_Port
+#define BCM_HAZARD_GPIO_Port       GPIOE
+#define BCM_HAZARD_Pin             GPIO_PIN_7
+#endif
 
 #define BCM_BUTTON_DEBOUNCE_SAMPLES 2U
 
@@ -40,6 +44,7 @@ static volatile BcmInput_State_t s_state;
 static volatile BcmInput_Mode_t s_mode = BCM_INPUT_MODE_GPIO;
 static BcmButton_Debounce_t s_left_button;
 static BcmButton_Debounce_t s_right_button;
+static BcmButton_Debounce_t s_hazard_button;
 
 static uint8_t read_input(GPIO_TypeDef *port, uint16_t pin)
 {
@@ -97,11 +102,14 @@ void BCM_Input_Init(void)
     HAL_GPIO_Init(BCM_TURN_LEFT_GPIO_Port, &gpio);
     gpio.Pin = BCM_TURN_RIGHT_Pin;
     HAL_GPIO_Init(BCM_TURN_RIGHT_GPIO_Port, &gpio);
+    gpio.Pin = BCM_HAZARD_Pin;
+    HAL_GPIO_Init(BCM_HAZARD_GPIO_Port, &gpio);
 
     memset((void *)&s_state, 0, sizeof(s_state));
     s_mode = BCM_INPUT_MODE_GPIO;
     memset(&s_left_button, 0, sizeof(s_left_button));
     memset(&s_right_button, 0, sizeof(s_right_button));
+    memset(&s_hazard_button, 0, sizeof(s_hazard_button));
 }
 
 void BCM_Input_Poll(void)
@@ -120,6 +128,11 @@ void BCM_Input_Poll(void)
     if (debounce_pressed(&s_right_button,
                          read_input(BCM_TURN_RIGHT_GPIO_Port, BCM_TURN_RIGHT_Pin))) {
         state.turn_right_enabled = state.turn_right_enabled ? 0U : 1U;
+    }
+
+    if (debounce_pressed(&s_hazard_button,
+                         read_input(BCM_HAZARD_GPIO_Port, BCM_HAZARD_Pin))) {
+        state.hazard_enabled = state.hazard_enabled ? 0U : 1U;
     }
 
     s_state = state;
@@ -150,6 +163,9 @@ void BCM_Input_SetField(BcmInput_Field_t field, uint8_t active)
         break;
     case BCM_INPUT_FIELD_TURN_RIGHT:
         state.turn_right_enabled = value;
+        break;
+    case BCM_INPUT_FIELD_HAZARD:
+        state.hazard_enabled = value;
         break;
     default:
         return;

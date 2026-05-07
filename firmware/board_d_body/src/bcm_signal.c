@@ -27,6 +27,7 @@ void BCM_Signal_BuildTurnFrame(const BcmSignal_TurnStatus_t *status,
 {
     uint8_t left_on;
     uint8_t right_on;
+    uint8_t hazard_on;
 
     if (status == NULL || out_msg == NULL) {
         return;
@@ -36,6 +37,7 @@ void BCM_Signal_BuildTurnFrame(const BcmSignal_TurnStatus_t *status,
 
     left_on = status->input.turn_left_enabled && status->left_blink_on;
     right_on = status->input.turn_right_enabled && status->right_blink_on;
+    hazard_on = status->input.hazard_enabled;
 
     set_mask(&out_msg->data[CAN_CLUSTER_531_TURN_IDX],
              CLUSTER_531_TURN_LEFT_BIT,
@@ -45,5 +47,5 @@ void BCM_Signal_BuildTurnFrame(const BcmSignal_TurnStatus_t *status,
              right_on);
     set_mask(&out_msg->data[CAN_CLUSTER_531_TURN_IDX],
              CLUSTER_531_TURN_HAZARD_BIT,
-             left_on && right_on);
+             hazard_on);
 }

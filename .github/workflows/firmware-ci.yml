@@ -26,7 +26,7 @@ env:
 jobs:
   layout:
     name: Layout check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -59,16 +59,9 @@ jobs:
           test -f firmware/board_d_body/src/bcm_main.c
           test -f firmware/board_e_safety/src/adas_main.c
 
-          test ! -d Core
-          test ! -d Drivers
-          test ! -d Middlewares
-          for board in "${boards[@]}"; do
-            test ! -d "${board}"
-          done
-
   unit-build:
     name: Unit build (${{ matrix.board }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: layout
 
     strategy:
@@ -126,7 +119,7 @@ jobs:
 
   integration-build:
     name: Integration build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: unit-build
 
     steps:

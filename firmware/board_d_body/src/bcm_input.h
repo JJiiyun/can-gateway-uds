@@ -20,11 +20,13 @@ typedef enum {
 typedef enum {
     BCM_INPUT_FIELD_TURN_LEFT = 0,
     BCM_INPUT_FIELD_TURN_RIGHT,
+    BCM_INPUT_FIELD_HAZARD,
 } BcmInput_Field_t;
 
 typedef struct {
     uint8_t turn_left_enabled;
     uint8_t turn_right_enabled;
+    uint8_t hazard_enabled;
 } BcmInput_State_t;
 
 void BCM_Input_Init(void);
