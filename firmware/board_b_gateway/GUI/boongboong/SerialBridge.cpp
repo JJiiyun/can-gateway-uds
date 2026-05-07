@@ -213,8 +213,8 @@ void SerialBridge::connectToPort(const QString &portName, int baudRate)
     emit connectionChanged();
 
     sendCommand("log on");
-    sendCommand("canlog all");
-    sendCommand("canlog on");
+    sendCommand("canlog rate 100");
+    sendCommand("canlog off");
 }
 
 void SerialBridge::disconnectPort()

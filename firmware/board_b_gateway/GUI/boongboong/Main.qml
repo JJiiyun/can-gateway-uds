@@ -650,7 +650,11 @@ ApplicationWindow {
                     width: 84
                     height: 36
                     text: "CAN Off"
-                    onClicked: serialBridge.sendCommand("canlog off")
+                    onClicked: {
+                        serialBridge.sendCommand("canlog off")
+                        serialBridge.sendCommand("canlog off")
+                        serialBridge.sendCommand("canlog off")
+                    }
                 }
 
                 Button {
