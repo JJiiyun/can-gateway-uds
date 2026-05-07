@@ -135,7 +135,7 @@ void LoggerTask(void *argument)
 
             log_printf("[GW] RX1=%lu TX1=%lu RX2=%lu TX2=%lu busy=%lu err=%lu "
                        "route=%lu ok=%lu fail=%lu ignore=%lu "
-                       "adas=%u risk=%u fault=0x%02X dtc=0x%02X "
+                       "adas=%u risk=%u fault=0x%02X dtc=0x%02X gong=0x%02X "
                        "front=%u rear=%u speed=%u alive=%u\r\n",
                        (unsigned long)can1RxCount,
                        (unsigned long)can1TxCount,
@@ -151,6 +151,7 @@ void LoggerTask(void *argument)
                        (unsigned int)safety.risk_level,
                        (unsigned int)safety.active_fault_bitmap,
                        (unsigned int)safety.dtc_bitmap,
+                       (unsigned int)safety.gong_flags,
                        (unsigned int)safety.front_distance_cm,
                        (unsigned int)safety.rear_distance_cm,
                        (unsigned int)safety.speed_kmh,

@@ -3,12 +3,15 @@
 #include <QDateTime>
 #include <QRegularExpression>
 #include <QSerialPortInfo>
+#include <algorithm>
 
 SerialBridge::SerialBridge(QObject *parent)
     : QObject(parent)
 {
     connect(&m_serial, &QSerialPort::readyRead, this, &SerialBridge::onReadyRead);
     connect(&m_serial, &QSerialPort::errorOccurred, this, &SerialBridge::onErrorOccurred);
+    connect(&m_pollTimer, &QTimer::timeout, this, &SerialBridge::onPollSerial);
+    m_pollTimer.setInterval(25);
     refreshPorts();
     setStatusText("Select a serial port");
 }
@@ -24,6 +27,10 @@ int SerialBridge::can2Tx() const { return m_can2Tx; }
 int SerialBridge::busy() const { return m_busy; }
 int SerialBridge::errors() const { return m_errors; }
 bool SerialBridge::warning() const { return m_warning; }
+int SerialBridge::routeMatched() const { return m_routeMatched; }
+int SerialBridge::routeOk() const { return m_routeOk; }
+int SerialBridge::routeFail() const { return m_routeFail; }
+int SerialBridge::routeIgnored() const { return m_routeIgnored; }
 
 int SerialBridge::rpm() const { return m_rpm; }
 int SerialBridge::speed() const { return m_speed; }
@@ -44,7 +51,19 @@ QString SerialBridge::lastBodyRx() const { return m_lastBodyRx; }
 
 bool SerialBridge::clusterRpmActive() const { return m_clusterRpmActive; }
 bool SerialBridge::clusterSpeedActive() const { return m_clusterSpeedActive; }
+bool SerialBridge::clusterSpeedNeedleActive() const { return m_clusterSpeedNeedleActive; }
+bool SerialBridge::clusterCoolantActive() const { return m_clusterCoolantActive; }
+bool SerialBridge::clusterIgnActive() const { return m_clusterIgnActive; }
 bool SerialBridge::clusterBodyActive() const { return m_clusterBodyActive; }
+bool SerialBridge::clusterTurnActive() const { return m_clusterTurnActive; }
+bool SerialBridge::adasValid() const { return m_adasValid; }
+int SerialBridge::adasRisk() const { return m_adasRisk; }
+int SerialBridge::adasFault() const { return m_adasFault; }
+int SerialBridge::adasDtc() const { return m_adasDtc; }
+int SerialBridge::adasFront() const { return m_adasFront; }
+int SerialBridge::adasRear() const { return m_adasRear; }
+int SerialBridge::adasSpeed() const { return m_adasSpeed; }
+int SerialBridge::adasAlive() const { return m_adasAlive; }
 QString SerialBridge::latestFrameId() const { return m_latestFrameId; }
 QString SerialBridge::latestFrameBus() const { return m_latestFrameBus; }
 QString SerialBridge::latestFrameDir() const { return m_latestFrameDir; }
@@ -58,8 +77,33 @@ void SerialBridge::refreshPorts()
     QStringList names;
     const QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
     for (const QSerialPortInfo &port : ports) {
-        names.append(port.systemLocation());
+        const QString location = port.systemLocation();
+        if (!location.startsWith("/dev/cu.")) {
+            continue;
+        }
+
+        const QString lowerName = port.portName().toLower();
+        const QString lowerLocation = location.toLower();
+        if (lowerName.contains("bluetooth") ||
+            lowerName.contains("debug-console") ||
+            lowerName.contains("wlan") ||
+            lowerLocation.contains("bluetooth") ||
+            lowerLocation.contains("debug-console") ||
+            lowerLocation.contains("wlan")) {
+            continue;
+        }
+
+        names.append(location);
     }
+
+    std::sort(names.begin(), names.end(), [](const QString &a, const QString &b) {
+        const bool aUsb = a.contains("usb", Qt::CaseInsensitive);
+        const bool bUsb = b.contains("usb", Qt::CaseInsensitive);
+        if (aUsb != bUsb) {
+            return aUsb;
+        }
+        return a < b;
+    });
 
     if (names != m_portNames) {
         m_portNames = names;
@@ -74,6 +118,7 @@ void SerialBridge::refreshPorts()
 void SerialBridge::resetMonitor()
 {
     if (m_serial.isOpen()) {
+        m_pollTimer.stop();
         m_serial.close();
         emit connectionChanged();
     }
@@ -86,6 +131,10 @@ void SerialBridge::resetMonitor()
     m_busy = 0;
     m_errors = 0;
     m_warning = false;
+    m_routeMatched = 0;
+    m_routeOk = 0;
+    m_routeFail = 0;
+    m_routeIgnored = 0;
     m_rpm = 0;
     m_speed = 0;
     m_coolant = 0;
@@ -103,7 +152,19 @@ void SerialBridge::resetMonitor()
     m_lastBodyRx = "-";
     m_clusterRpmActive = false;
     m_clusterSpeedActive = false;
+    m_clusterSpeedNeedleActive = false;
+    m_clusterCoolantActive = false;
+    m_clusterIgnActive = false;
     m_clusterBodyActive = false;
+    m_clusterTurnActive = false;
+    m_adasValid = false;
+    m_adasRisk = 0;
+    m_adasFault = 0;
+    m_adasDtc = 0;
+    m_adasFront = 0;
+    m_adasRear = 0;
+    m_adasSpeed = 0;
+    m_adasAlive = 0;
     m_latestFrameId = "-";
     m_latestFrameBus = "-";
     m_latestFrameDir = "-";
@@ -120,6 +181,7 @@ void SerialBridge::resetMonitor()
 void SerialBridge::connectToPort(const QString &portName, int baudRate)
 {
     if (m_serial.isOpen()) {
+        m_pollTimer.stop();
         m_serial.close();
         emit connectionChanged();
     }
@@ -142,14 +204,25 @@ void SerialBridge::connectToPort(const QString &portName, int baudRate)
         return;
     }
 
+    m_serial.setDataTerminalReady(true);
+    m_serial.setRequestToSend(true);
+    m_serial.clear(QSerialPort::AllDirections);
     m_rxBuffer.clear();
-    setStatusText("Connected to " + portName);
+    m_pollTimer.start();
+    setStatusText("Connected " + portName + " @ " + QString::number(baudRate));
     emit connectionChanged();
+
+    sendCommand("log on");
+    sendCommand("canlog all");
+    sendCommand("canlog on");
 }
 
 void SerialBridge::disconnectPort()
 {
+    m_pollTimer.stop();
     if (m_serial.isOpen()) {
+        m_serial.setRequestToSend(false);
+        m_serial.setDataTerminalReady(false);
         m_serial.close();
     }
     setStatusText("Disconnected");
@@ -168,6 +241,7 @@ void SerialBridge::sendCommand(const QString &command)
         payload.append("\r\n");
     }
     m_serial.write(payload);
+    m_serial.flush();
 }
 
 void SerialBridge::onReadyRead()
@@ -191,6 +265,13 @@ void SerialBridge::onReadyRead()
     }
 }
 
+void SerialBridge::onPollSerial()
+{
+    if (m_serial.isOpen() && m_serial.bytesAvailable() > 0) {
+        onReadyRead();
+    }
+}
+
 void SerialBridge::onErrorOccurred(QSerialPort::SerialPortError error)
 {
     if (error == QSerialPort::NoError) {
@@ -199,6 +280,7 @@ void SerialBridge::onErrorOccurred(QSerialPort::SerialPortError error)
 
     if (error == QSerialPort::ResourceError) {
         setStatusText("Serial disconnected: " + m_serial.errorString());
+        m_pollTimer.stop();
         m_serial.close();
         emit connectionChanged();
     }
@@ -231,28 +313,62 @@ void SerialBridge::processLine(const QString &line)
 
 void SerialBridge::parseGatewayStatus(const QString &line)
 {
-    static const QRegularExpression regex(
-        R"(\[GW\]\s+RX1=(\d+)\s+TX1=(\d+)\s+RX2=(\d+)\s+TX2=(\d+)\s+busy=(\d+)\s+err=(\d+)\s+warn=(\d+)(?:\s+rpm=(\d+)\s+speed=(\d+)\s+coolant=(\d+)\s+ign=(\d+)\s+alive=(\d+)\s+active=(\d+)\s+age=(\d+))?)");
-    const QRegularExpressionMatch match = regex.match(line);
-    if (!match.hasMatch()) {
+    bool matched = false;
+    auto valueFor = [&](const QString &key, int fallback) {
+        const QRegularExpression regex("\\b" + QRegularExpression::escape(key) + "=(-?(?:0x)?[0-9A-Fa-f]+)");
+        const QRegularExpressionMatch match = regex.match(line);
+        if (!match.hasMatch()) {
+            return fallback;
+        }
+
+        bool ok = false;
+        QString text = match.captured(1);
+        const bool negative = text.startsWith('-');
+        if (negative) {
+            text.remove(0, 1);
+        }
+        const int base = text.startsWith("0x", Qt::CaseInsensitive) ? 16 : 10;
+        if (base == 16) {
+            text.remove(0, 2);
+        }
+        int value = text.toInt(&ok, base);
+        if (negative) {
+            value = -value;
+        }
+        if (ok) {
+            matched = true;
+            return value;
+        }
+        return fallback;
+    };
+
+    m_can1Rx = valueFor("RX1", m_can1Rx);
+    m_can1Tx = valueFor("TX1", m_can1Tx);
+    m_can2Rx = valueFor("RX2", m_can2Rx);
+    m_can2Tx = valueFor("TX2", m_can2Tx);
+    m_busy = valueFor("busy", m_busy);
+    m_errors = valueFor("err", m_errors);
+
+    m_routeMatched = valueFor("route", m_routeMatched);
+    m_routeOk = valueFor("ok", m_routeOk);
+    m_routeFail = valueFor("fail", m_routeFail);
+    m_routeIgnored = valueFor("ignore", m_routeIgnored);
+
+    m_adasValid = valueFor("adas", m_adasValid ? 1 : 0) != 0;
+    m_adasRisk = valueFor("risk", m_adasRisk);
+    m_adasFault = valueFor("fault", m_adasFault);
+    m_adasDtc = valueFor("dtc", m_adasDtc);
+    m_adasFront = valueFor("front", m_adasFront);
+    m_adasRear = valueFor("rear", m_adasRear);
+    m_adasSpeed = valueFor("speed", m_adasSpeed);
+    m_adasAlive = valueFor("alive", m_adasAlive);
+
+    m_warning = valueFor("warn", (m_adasRisk >= 2 || m_adasFault != 0) ? 1 : 0) != 0 ||
+                m_adasRisk >= 2 ||
+                m_adasFault != 0;
+
+    if (!matched) {
         return;
-    }
-
-    m_can1Rx = match.captured(1).toInt();
-    m_can1Tx = match.captured(2).toInt();
-    m_can2Rx = match.captured(3).toInt();
-    m_can2Tx = match.captured(4).toInt();
-    m_busy = match.captured(5).toInt();
-    m_errors = match.captured(6).toInt();
-    m_warning = match.captured(7).toInt() != 0;
-
-    if (!match.captured(8).isEmpty()) {
-        m_rpm = match.captured(8).toInt();
-        m_speed = match.captured(9).toInt();
-        m_coolant = match.captured(10).toInt();
-        m_ignition = match.captured(11).toInt() != 0;
-        m_alive = match.captured(12).toInt();
-        m_lastEngineRx = match.captured(14) + " ms";
     }
 
     emit dataChanged();
@@ -306,19 +422,48 @@ void SerialBridge::parseFrameLine(const QString &line)
 QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, const QString &dir)
 {
     if (id == "0x100" && bytes.size() >= 6) {
-        m_rpm = bytes[0] | (bytes[1] << 8);
-        m_speed = bytes[2] | (bytes[3] << 8);
-        m_coolant = bytes[4];
         m_ignition = (bytes[5] & 0x01) != 0;
-        m_alive = (bytes[5] & 0xFE) >> 1;
         m_lastEngineRx = nowString();
+        if (dir == "TX") {
+            m_clusterIgnActive = true;
+        }
         emit dataChanged();
-        return QString("rpm=%1 speed=%2 coolant=%3 ign=%4 alive=%5")
-            .arg(m_rpm)
-            .arg(m_speed)
-            .arg(m_coolant)
-            .arg(m_ignition ? 1 : 0)
-            .arg(m_alive);
+        return QString("board_a_ign=%1").arg(m_ignition ? 1 : 0);
+    }
+
+    if (id == "0x531" && bytes.size() >= 3) {
+        m_turnLeft = (bytes[2] & 0x01) != 0;
+        m_turnRight = (bytes[2] & 0x02) != 0;
+        const bool hazard = (bytes[2] & 0x04) != 0;
+        m_lastBodyRx = nowString();
+        if (dir == "TX") {
+            m_clusterTurnActive = true;
+        }
+        emit dataChanged();
+        return QString("board_d_turn left=%1 right=%2 hazard=%3")
+            .arg(m_turnLeft ? 1 : 0)
+            .arg(m_turnRight ? 1 : 0)
+            .arg(hazard ? 1 : 0);
+    }
+
+    if (id == "0x3A0" && bytes.size() >= 8) {
+        m_adasValid = true;
+        m_adasRisk = bytes[1];
+        m_adasFront = bytes[2];
+        m_adasRear = bytes[3];
+        m_adasFault = bytes[4];
+        m_adasSpeed = bytes[5];
+        m_adasAlive = bytes[7];
+        m_warning = m_adasRisk >= 2 || m_adasFault != 0;
+        emit dataChanged();
+        return QString("board_e_adas flags=0x%1 risk=%2 front=%3 rear=%4 speed=%5 fault=0x%6 alive=%7")
+            .arg(bytes[0], 2, 16, QLatin1Char('0')).toUpper()
+            .arg(m_adasRisk)
+            .arg(m_adasFront)
+            .arg(m_adasRear)
+            .arg(m_adasSpeed)
+            .arg(m_adasFault, 2, 16, QLatin1Char('0')).toUpper()
+            .arg(m_adasAlive);
     }
 
     if (id == "0x390" && bytes.size() >= 8) {
@@ -348,6 +493,8 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
         QString decoded = "cluster rpm frame";
         if (bytes.size() >= 5) {
             const int clusterRpm = static_cast<int>(leSignal(bytes, 16, 16) / 4U);
+            m_rpm = clusterRpm;
+            m_lastEngineRx = nowString();
             decoded = QString("cluster_rpm=%1").arg(clusterRpm);
         }
 
@@ -361,7 +508,9 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
     if (id == "0x1A0") {
         QString decoded = "cluster speed frame";
         if (bytes.size() >= 4) {
-            const int clusterSpeed = static_cast<int>(leSignal(bytes, 17, 15) / 100U);
+            const int clusterSpeed = ((bytes[2] | (bytes[3] << 8)) / 160);
+            m_speed = clusterSpeed;
+            m_lastEngineRx = nowString();
             decoded = QString("cluster_speed=%1 km/h").arg(clusterSpeed);
         }
 
@@ -374,23 +523,42 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
 
     if (id == "0x288") {
         if (bytes.size() >= 2) {
-            const int raw = static_cast<int>(leSignal(bytes, 8, 8));
-            const int temp = (raw * 3) / 4 - 48;
-            return QString("cluster_coolant=%1 C").arg(temp);
+            m_coolant = bytes[1];
+            m_lastEngineRx = nowString();
+            if (dir == "TX") {
+                m_clusterCoolantActive = true;
+            }
+            emit dataChanged();
+            return QString("cluster_coolant_needle=%1").arg(m_coolant);
         }
         return "cluster coolant frame";
     }
 
+    if (id == "0x5A0") {
+        if (bytes.size() >= 3) {
+            m_speed = bytes[2];
+            m_lastEngineRx = nowString();
+            if (dir == "TX") {
+                m_clusterSpeedNeedleActive = true;
+            }
+            emit dataChanged();
+            return QString("cluster_speed_needle=%1 km/h").arg(m_speed);
+        }
+        return "cluster speed needle frame";
+    }
+
     if (id == "0x480") {
-        m_warning = true;
+        const bool heat = bitAt(bytes, 12);
+        const bool lamp = bitAt(bytes, 40);
+        const bool faultLamp = bitAt(bytes, 44);
+        const bool text = bitAt(bytes, 54);
+        m_warning = heat || lamp || faultLamp || text;
         emit dataChanged();
-        const bool rpmWarning = !bytes.isEmpty() && ((bytes[0] & 0x01) != 0);
-        const bool overheat = !bytes.isEmpty() && ((bytes[0] & 0x02) != 0);
-        const bool general = !bytes.isEmpty() && ((bytes[0] & 0x04) != 0);
-        return QString("warning rpm=%1 overheat=%2 general=%3")
-            .arg(rpmWarning ? 1 : 0)
-            .arg(overheat ? 1 : 0)
-            .arg(general ? 1 : 0);
+        return QString("mMotor_5 warn heat=%1 lamp=%2 fault=%3 text=%4")
+            .arg(heat ? 1 : 0)
+            .arg(lamp ? 1 : 0)
+            .arg(faultLamp ? 1 : 0)
+            .arg(text ? 1 : 0);
     }
 
     return "";

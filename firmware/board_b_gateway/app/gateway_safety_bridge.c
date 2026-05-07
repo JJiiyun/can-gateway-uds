@@ -17,9 +17,9 @@ extern CAN_HandleTypeDef hcan2;
 #endif
 
 /*
- * KMatrix maps CAN 0x3A0 to Golf6 mBremse_10 on the cluster bus. Keep
- * forwarding off by default so Board E's internal ADAS_Status does not collide
- * with a real Golf6 brake frame.
+ * CAN_ID_ADAS_STATUS is a temporary internal Board E -> Gateway ID. The payload
+ * layout follows Board E's ADAS Status frame; do not reuse Board A's 0x5A0
+ * speed auxiliary ID for this path.
  */
 #ifndef GATEWAY_SAFETY_FORWARD_ADAS_STATUS
 #define GATEWAY_SAFETY_FORWARD_ADAS_STATUS 0
@@ -121,12 +121,14 @@ void GatewaySafetyBridge_OnRx(const CAN_RxMessage_t *rx_msg)
     }
 
     s_diag.valid = 1U;
-    s_diag.flags = rx_msg->data[CAN_ADAS_STATUS_FLAGS_IDX];
-    s_diag.risk_level = rx_msg->data[CAN_ADAS_STATUS_RISK_LEVEL_IDX];
     s_diag.front_distance_cm = rx_msg->data[CAN_ADAS_STATUS_FRONT_CM_IDX];
     s_diag.rear_distance_cm = rx_msg->data[CAN_ADAS_STATUS_REAR_CM_IDX];
+    s_diag.flags = (uint8_t)(rx_msg->data[CAN_ADAS_STATUS_WARNING_IDX] |
+                             ADAS_FLAG_ACTIVE);
+    s_diag.risk_level = rx_msg->data[CAN_ADAS_STATUS_RISK_LEVEL_IDX];
     s_diag.active_fault_bitmap = rx_msg->data[CAN_ADAS_STATUS_FAULT_BITMAP_IDX];
-    s_diag.speed_kmh = rx_msg->data[CAN_ADAS_STATUS_SPEED_KMH_IDX];
+    s_diag.gong_flags = rx_msg->data[CAN_ADAS_STATUS_GONG_IDX];
+    s_diag.speed_kmh = 0U;
     s_diag.alive = rx_msg->data[CAN_ADAS_STATUS_ALIVE_IDX];
     s_diag.last_rx_tick = osKernelGetTickCount();
 
@@ -167,9 +169,4 @@ void GatewaySafetyBridge_GetDiagnostic(GatewaySafetyDiagnostic_t *out_diag)
     if (out_diag != NULL) {
         *out_diag = s_diag;
     }
-}
-
-void GatewaySafetyBridge_ClearDtc(void)
-{
-    s_diag.dtc_bitmap = 0U;
 }
