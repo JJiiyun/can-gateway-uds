@@ -299,7 +299,11 @@ void SerialBridge::processLine(const QString &line)
 {
     const int gwIndex = line.indexOf("[GW]");
     if (gwIndex >= 0) {
-        const QString gatewayLine = line.mid(gwIndex);
+        QString gatewayLine = line.mid(gwIndex);
+        const int nextGwIndex = gatewayLine.indexOf("[GW]", 4);
+        if (nextGwIndex > 0) {
+            gatewayLine = gatewayLine.left(nextGwIndex).trimmed();
+        }
         parseGatewayStatus(gatewayLine);
         emit gatewayLineReceived(nowString(), gatewayLine);
         return;

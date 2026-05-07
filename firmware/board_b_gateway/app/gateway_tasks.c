@@ -16,7 +16,7 @@ static volatile uint8_t s_status_log_enabled = 1U;
 
 static void log_printf(const char *fmt, ...)
 {
-    char buf[128];
+    char buf[320];
     va_list args;
     va_start(args, fmt);
     int len = vsnprintf(buf, sizeof(buf), fmt, args);
@@ -25,8 +25,12 @@ static void log_printf(const char *fmt, ...)
     if (len <= 0) {
         return;
     }
-    if (len > (int)sizeof(buf)) {
-        len = (int)sizeof(buf);
+    if (len >= (int)sizeof(buf)) {
+        len = (int)sizeof(buf) - 1;
+        if (len >= 2) {
+            buf[len - 2] = '\r';
+            buf[len - 1] = '\n';
+        }
     }
 
     (void)uartWrite(0, (uint8_t *)buf, (uint32_t)len);
