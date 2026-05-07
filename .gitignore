@@ -25,6 +25,7 @@ mx.scratch/
 .metadata/
 
 # VS Code / editor local state
+*.vscode/
 .vscode/*
 !.vscode/settings.json
 !.vscode/c_cpp_properties.json
