@@ -32,6 +32,10 @@ ApplicationWindow {
         property int busy: serialBridge.busy
         property int errors: serialBridge.errors
         property bool warning: serialBridge.warning
+        property int routeMatched: serialBridge.routeMatched
+        property int routeOk: serialBridge.routeOk
+        property int routeFail: serialBridge.routeFail
+        property int routeIgnored: serialBridge.routeIgnored
         property int rpm: serialBridge.rpm
         property int speed: serialBridge.speed
         property int coolant: serialBridge.coolant
@@ -44,6 +48,14 @@ ApplicationWindow {
         property bool turnRight: serialBridge.turnRight
         property bool highBeam: serialBridge.highBeam
         property bool fogLamp: serialBridge.fogLamp
+        property bool adasValid: serialBridge.adasValid
+        property int adasRisk: serialBridge.adasRisk
+        property int adasFault: serialBridge.adasFault
+        property int adasDtc: serialBridge.adasDtc
+        property int adasFront: serialBridge.adasFront
+        property int adasRear: serialBridge.adasRear
+        property int adasSpeed: serialBridge.adasSpeed
+        property int adasAlive: serialBridge.adasAlive
     }
 
     ListModel { id: logModel }
@@ -345,12 +357,12 @@ ApplicationWindow {
                 height: 132
                 title: "Gateway Health"
                 value: gateway.warning ? "WARNING" : "NORMAL"
-                detail: "busy " + gateway.busy + " / err " + gateway.errors
+                detail: "busy " + gateway.busy + " / err " + gateway.errors + " / fail " + gateway.routeFail
                 accent: gateway.warning ? root.warnColor : root.goodColor
             }
 
             Rectangle {
-                id: enginePanel
+                id: routerPanel
                 x: page.margin
                 y: 164
                 width: page.halfW
@@ -364,7 +376,7 @@ ApplicationWindow {
                     x: 18
                     y: 18
                     width: parent.width - 36
-                    text: "Board A Engine"
+                    text: "CAN1 Input Boards"
                     color: root.textPrimary
                     font.pixelSize: 20
                     font.weight: Font.Bold
@@ -373,64 +385,57 @@ ApplicationWindow {
 
                 Text {
                     x: 18
-                    y: 64
+                    y: 54
                     width: parent.width - 36
-                    height: 48
-                    text: gateway.rpm + " rpm"
+                    text: "Board A Engine / Cluster Source"
                     color: root.textPrimary
-                    font.pixelSize: 38
-                    font.weight: Font.Bold
+                    font.pixelSize: 15
+                    font.weight: Font.DemiBold
                     elide: Text.ElideRight
-                    verticalAlignment: Text.AlignVCenter
                 }
 
-                ProgressBar {
+                readonly property int tileW: (width - 78) / 4
+
+                SmallTile { x: 18; y: 86; width: routerPanel.tileW; height: 58; label: "RPM"; value: gateway.rpm }
+                SmallTile { x: 32 + routerPanel.tileW; y: 86; width: routerPanel.tileW; height: 58; label: "Speed"; value: gateway.speed + " km/h" }
+                SmallTile { x: 46 + routerPanel.tileW * 2; y: 86; width: routerPanel.tileW; height: 58; label: "Coolant"; value: gateway.coolant }
+                SmallTile { x: 60 + routerPanel.tileW * 3; y: 86; width: routerPanel.tileW; height: 58; label: "IGN"; value: gateway.ignition ? "ON" : "OFF" }
+
+                Text {
                     x: 18
-                    y: 130
+                    y: 166
                     width: parent.width - 36
-                    height: 14
-                    value: Math.max(0, Math.min(1, gateway.rpm / 6000))
+                    text: "Board D Body Input"
+                    color: root.textPrimary
+                    font.pixelSize: 15
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
                 }
 
-                SmallTile {
+                StatusPill { x: 18; y: 198; width: routerPanel.tileW; height: 34; label: "Left"; active: gateway.turnLeft }
+                StatusPill { x: 32 + routerPanel.tileW; y: 198; width: routerPanel.tileW; height: 34; label: "Right"; active: gateway.turnRight }
+                StatusPill { x: 46 + routerPanel.tileW * 2; y: 198; width: routerPanel.tileW; height: 34; label: "Hazard"; active: gateway.turnLeft && gateway.turnRight }
+                StatusPill { x: 60 + routerPanel.tileW * 3; y: 198; width: routerPanel.tileW; height: 34; label: "Seen"; active: serialBridge.lastBodyRx !== "-" }
+
+                Text {
                     x: 18
-                    y: 170
-                    width: (parent.width - 50) / 2
-                    height: 68
-                    label: "Speed"
-                    value: gateway.speed + " km/h"
+                    y: 254
+                    width: parent.width - 36
+                    text: "Board E Safety Input"
+                    color: root.textPrimary
+                    font.pixelSize: 15
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
                 }
 
-                SmallTile {
-                    x: 32 + (parent.width - 50) / 2
-                    y: 170
-                    width: (parent.width - 50) / 2
-                    height: 68
-                    label: "Coolant"
-                    value: gateway.coolant + " C"
-                }
-
-                SmallTile {
-                    x: 18
-                    y: 252
-                    width: (parent.width - 50) / 2
-                    height: 68
-                    label: "IGN"
-                    value: gateway.ignition ? "ON" : "OFF"
-                }
-
-                SmallTile {
-                    x: 32 + (parent.width - 50) / 2
-                    y: 252
-                    width: (parent.width - 50) / 2
-                    height: 68
-                    label: "Last RX"
-                    value: serialBridge.lastEngineRx
-                }
+                SmallTile { x: 18; y: 286; width: routerPanel.tileW; height: 58; label: "Risk"; value: gateway.adasRisk }
+                SmallTile { x: 32 + routerPanel.tileW; y: 286; width: routerPanel.tileW; height: 58; label: "Front"; value: gateway.adasFront + " cm" }
+                SmallTile { x: 46 + routerPanel.tileW * 2; y: 286; width: routerPanel.tileW; height: 58; label: "Rear"; value: gateway.adasRear + " cm" }
+                SmallTile { x: 60 + routerPanel.tileW * 3; y: 286; width: routerPanel.tileW; height: 58; label: "Fault"; value: "0x" + gateway.adasFault.toString(16).toUpperCase() }
             }
 
             Rectangle {
-                id: bodyPanel
+                id: safetyPanel
                 x: page.margin + page.halfW + page.gap
                 y: 164
                 width: page.halfW
@@ -444,7 +449,7 @@ ApplicationWindow {
                     x: 18
                     y: 18
                     width: parent.width - 36
-                    text: "Board D Body"
+                    text: "Board B Gateway / CAN2 Outputs"
                     color: root.textPrimary
                     font.pixelSize: 20
                     font.weight: Font.Bold
@@ -453,20 +458,21 @@ ApplicationWindow {
 
                 readonly property int pillW: (width - 60) / 4
 
-                StatusPill { x: 18; y: 60; width: bodyPanel.pillW; height: 34; label: "FL Door"; active: gateway.doorFl }
-                StatusPill { x: 28 + bodyPanel.pillW; y: 60; width: bodyPanel.pillW; height: 34; label: "FR Door"; active: gateway.doorFr }
-                StatusPill { x: 38 + bodyPanel.pillW * 2; y: 60; width: bodyPanel.pillW; height: 34; label: "RL Door"; active: gateway.doorRl }
-                StatusPill { x: 48 + bodyPanel.pillW * 3; y: 60; width: bodyPanel.pillW; height: 34; label: "RR Door"; active: gateway.doorRr }
-                StatusPill { x: 18; y: 104; width: bodyPanel.pillW; height: 34; label: "Left"; active: gateway.turnLeft }
-                StatusPill { x: 28 + bodyPanel.pillW; y: 104; width: bodyPanel.pillW; height: 34; label: "Right"; active: gateway.turnRight }
-                StatusPill { x: 38 + bodyPanel.pillW * 2; y: 104; width: bodyPanel.pillW; height: 34; label: "High"; active: gateway.highBeam }
-                StatusPill { x: 48 + bodyPanel.pillW * 3; y: 104; width: bodyPanel.pillW; height: 34; label: "Fog"; active: gateway.fogLamp }
+                SmallTile { x: 18; y: 60; width: safetyPanel.pillW; height: 58; label: "Routed"; value: gateway.routeMatched }
+                SmallTile { x: 28 + safetyPanel.pillW; y: 60; width: safetyPanel.pillW; height: 58; label: "OK"; value: gateway.routeOk }
+                SmallTile { x: 38 + safetyPanel.pillW * 2; y: 60; width: safetyPanel.pillW; height: 58; label: "Fail"; value: gateway.routeFail }
+                SmallTile { x: 48 + safetyPanel.pillW * 3; y: 60; width: safetyPanel.pillW; height: 58; label: "Ignored"; value: gateway.routeIgnored }
+
+                StatusPill { x: 18; y: 132; width: safetyPanel.pillW; height: 34; label: "ADAS"; active: gateway.adasValid }
+                StatusPill { x: 28 + safetyPanel.pillW; y: 132; width: safetyPanel.pillW; height: 34; label: "Warning"; active: gateway.warning }
+                StatusPill { x: 38 + safetyPanel.pillW * 2; y: 132; width: safetyPanel.pillW; height: 34; label: "Fault"; active: gateway.adasFault !== 0 }
+                StatusPill { x: 48 + safetyPanel.pillW * 3; y: 132; width: safetyPanel.pillW; height: 34; label: "DTC"; active: gateway.adasDtc !== 0 }
 
                 Rectangle {
                     x: 18
-                    y: 160
+                    y: 184
                     width: parent.width - 36
-                    height: 176
+                    height: 152
                     radius: 8
                     color: root.panelSoft
 
@@ -474,33 +480,59 @@ ApplicationWindow {
                         x: 14
                         y: 12
                         width: parent.width - 28
-                        text: "Cluster / CAN2 Output"
+                        text: "CAN2 Output Watch"
                         color: root.textPrimary
                         font.pixelSize: 16
                         font.weight: Font.Bold
                         elide: Text.ElideRight
                     }
 
-                    Repeater {
-                        model: [
-                            ["0x280", "Motor_1 RPM", "50 ms", serialBridge.clusterRpmActive],
-                            ["0x1A0", "Bremse_1 Speed", "500 ms", serialBridge.clusterSpeedActive],
-                            ["0x390", "Body Forward", "100 ms", serialBridge.clusterBodyActive],
-                            ["0x480", "Warning", "event", gateway.warning]
-                        ]
+                    ListModel {
+                        id: can2OutputModel
+                        ListElement { frameId: "0x100"; name: "IGN status"; period: "50 ms"; key: "ign" }
+                        ListElement { frameId: "0x280"; name: "RPM Motor_1"; period: "50 ms"; key: "rpm" }
+                        ListElement { frameId: "0x1A0"; name: "Speed Bremse_1"; period: "50 ms"; key: "speed" }
+                        ListElement { frameId: "0x5A0"; name: "Speed needle"; period: "50 ms"; key: "needle" }
+                        ListElement { frameId: "0x288"; name: "Coolant Motor_2"; period: "100 ms"; key: "coolant" }
+                        ListElement { frameId: "0x531"; name: "Turn status"; period: "100 ms"; key: "turn" }
+                        ListElement { frameId: "0x390"; name: "Body forward"; period: "100 ms"; key: "body" }
+                        ListElement { frameId: "0x480"; name: "mMotor_5 warning"; period: "100 ms"; key: "warning" }
+                    }
+
+                    ListView {
+                        id: can2OutputList
+                        x: 14
+                        y: 42
+                        width: parent.width - 28
+                        height: parent.height - 52
+                        clip: true
+                        model: can2OutputModel
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        ScrollBar.vertical: ScrollBar {
+                            policy: ScrollBar.AsNeeded
+                        }
 
                         delegate: Item {
-                            x: 14
-                            y: 48 + index * 30
-                            width: parent.width - 28
-                            height: 24
+                            width: ListView.view.width
+                            height: 30
+
+                            readonly property bool active:
+                                key === "ign" ? serialBridge.clusterIgnActive :
+                                key === "rpm" ? serialBridge.clusterRpmActive :
+                                key === "speed" ? serialBridge.clusterSpeedActive :
+                                key === "needle" ? serialBridge.clusterSpeedNeedleActive :
+                                key === "coolant" ? serialBridge.clusterCoolantActive :
+                                key === "turn" ? serialBridge.clusterTurnActive :
+                                key === "body" ? serialBridge.clusterBodyActive :
+                                gateway.warning
 
                             Text {
                                 x: 0
                                 y: 0
                                 width: 58
                                 height: parent.height
-                                text: modelData[0]
+                                text: frameId
                                 color: root.accentColor
                                 font.pixelSize: 14
                                 font.weight: Font.Bold
@@ -513,7 +545,7 @@ ApplicationWindow {
                                 y: 0
                                 width: parent.width - 164
                                 height: parent.height
-                                text: modelData[1]
+                                text: name
                                 color: root.textPrimary
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
@@ -525,7 +557,7 @@ ApplicationWindow {
                                 y: 0
                                 width: 64
                                 height: parent.height
-                                text: modelData[2]
+                                text: period
                                 color: root.textMuted
                                 font.pixelSize: 13
                                 verticalAlignment: Text.AlignVCenter
@@ -534,11 +566,11 @@ ApplicationWindow {
 
                             Rectangle {
                                 x: parent.width - 10
-                                y: 7
+                                y: parent.height / 2 - 5
                                 width: 10
                                 height: 10
                                 radius: 5
-                                color: modelData[3] ? root.goodColor : root.textMuted
+                                color: active ? root.goodColor : root.textMuted
                             }
                         }
                     }
