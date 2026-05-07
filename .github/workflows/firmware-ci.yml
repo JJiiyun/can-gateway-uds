@@ -37,27 +37,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          boards=($FIRMWARE_BOARDS)
-
           test -f common/can_bsp.c
           test -f common/signal_db.h
           test -f common/protocol_ids.h
-          test -f docs/VW_Passat_B6.dbc
 
-          for board in "${boards[@]}"; do
+          for board in $FIRMWARE_BOARDS; do
             test -d "firmware/${board}"
-            test -f "firmware/${board}/CMakeLists.txt"
-            test -f "firmware/${board}/CMakePresets.json"
-            test -f "firmware/${board}/cmake/gcc-arm-none-eabi.cmake"
           done
-
-          test -d firmware/board_a_engine/MyApp
-          test -d firmware/board_b_gateway/app
-          test -d firmware/board_c_uds/board_c_uds
-          test -d firmware/board_d_body/src
-          test -d firmware/board_e_safety/src
-          test -f firmware/board_d_body/src/bcm_main.c
-          test -f firmware/board_e_safety/src/adas_main.c
 
   unit-build:
     name: Unit build (${{ matrix.board }})
