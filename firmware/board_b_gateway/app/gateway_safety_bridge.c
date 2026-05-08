@@ -24,6 +24,10 @@ extern CAN_HandleTypeDef hcan2;
 #define GATEWAY_SAFETY_GONG_RISK3_PERIOD_MS 300U
 #endif
 
+#ifndef GATEWAY_SAFETY_PARKING_ASSIST_SWEEP_PERIOD_MS
+#define GATEWAY_SAFETY_PARKING_ASSIST_SWEEP_PERIOD_MS 10U
+#endif
+
 #ifndef GATEWAY_SAFETY_TIMEOUT_MS
 #define GATEWAY_SAFETY_TIMEOUT_MS 500U
 #endif
@@ -41,7 +45,9 @@ static GatewaySafetyDiagnostic_t s_diag;
 static uint32_t s_next_warning_tick;
 static uint32_t s_next_gong_tick;
 static uint32_t s_gong_clear_tick;
+static uint32_t s_next_parking_assist_sweep_tick;
 static uint8_t s_warning_alive;
+static uint8_t s_parking_assist_byte1_sweep;
 static bool s_gong_asserted;
 
 static uint32_t tick_elapsed(uint32_t now, uint32_t before)
@@ -119,6 +125,9 @@ static void build_parking_assist_gong(uint8_t data[8], bool active)
 {
     memset(data, 0, PARKING_ASSIST_DLC);
     set_bit(data, PARKING_ASSIST_GONG_BIT, active ? 1U : 0U);
+
+    /* Probe unknown Parking Assist byte[1] payload: 00..FF continuously. */
+    data[1] = s_parking_assist_byte1_sweep++;
 }
 
 static void send_warning(uint32_t now)
@@ -144,11 +153,7 @@ static void send_seatbelt_gong(bool active)
 static void update_seatbelt_gong(uint32_t now)
 {
     if (!seatbelt_gong_active(now)) {
-        if (s_gong_asserted) {
-            send_seatbelt_gong(false);
-            s_gong_asserted = false;
-        }
-
+        s_gong_asserted = false;
         s_next_gong_tick = 0U;
         s_gong_clear_tick = 0U;
         s_diag.gong_flags = 0U;
@@ -164,15 +169,26 @@ static void update_seatbelt_gong(uint32_t now)
     }
 
     if (s_gong_asserted && tick_reached(now, s_gong_clear_tick)) {
-        send_seatbelt_gong(false);
         s_gong_asserted = false;
     }
 
     if (!s_gong_asserted && tick_reached(now, s_next_gong_tick)) {
-        send_seatbelt_gong(true);
         s_gong_asserted = true;
         s_gong_clear_tick = now + GATEWAY_SAFETY_GONG_PULSE_MS;
         s_next_gong_tick = now + seatbelt_gong_period_ms();
+    }
+}
+
+static void update_parking_assist_sweep(uint32_t now)
+{
+    if (s_next_parking_assist_sweep_tick == 0U) {
+        s_next_parking_assist_sweep_tick = now;
+    }
+
+    if (tick_reached(now, s_next_parking_assist_sweep_tick)) {
+        send_seatbelt_gong(s_gong_asserted);
+        s_next_parking_assist_sweep_tick =
+            now + GATEWAY_SAFETY_PARKING_ASSIST_SWEEP_PERIOD_MS;
     }
 }
 
@@ -193,7 +209,9 @@ void GatewaySafetyBridge_Init(void)
     s_next_warning_tick = 0U;
     s_next_gong_tick = 0U;
     s_gong_clear_tick = 0U;
+    s_next_parking_assist_sweep_tick = 0U;
     s_warning_alive = 0U;
+    s_parking_assist_byte1_sweep = 0U;
     s_gong_asserted = false;
 }
 
@@ -256,6 +274,7 @@ void GatewaySafetyBridge_Task10ms(void)
     }
 
     update_seatbelt_gong(now);
+    update_parking_assist_sweep(now);
 }
 
 void GatewaySafetyBridge_GetDiagnostic(GatewaySafetyDiagnostic_t *out_diag)
