@@ -6,6 +6,7 @@
 #define CAN_ID_CLUSTER_IGN_STATUS    0x100U
 #define CAN_ID_BODY_STATUS           0x390U
 #define CAN_ID_ADAS_STATUS           0x3A0U  /* Temporary Board E -> Gateway ID. */
+#define CAN_ID_WARNING               0x480U
 #define CAN_ID_GOLF6_AIRBAG_1        0x050U
 #define CAN_ID_PARKING_ASSIST        0x5D6U
 #define CAN_ID_GATEWAY_UDS_REQ       0x714U
@@ -73,6 +74,13 @@
 #define UDS_DID_ADAS_FRONT_DISTANCE       0xF411U
 #define UDS_DID_ADAS_REAR_DISTANCE        0xF412U
 #define UDS_DID_ADAS_FAULT_BITMAP         0xF413U
+
+/* Golf 6 KMatrix/DBC: CAN 0x480 is mMotor_5. */
+#define GOLF6_MOTOR_5_DLC                8U
+#define GOLF6_MO5_HEISSL_BIT             12U
+#define GOLF6_MO5_HLEUCHTE_BIT           40U
+#define GOLF6_MO5_TDE_LAMPE_BIT          44U
+#define GOLF6_MO5_MOTORTEXT3_BIT         54U
 
 /* Parking Assist CAN 0x5D6 for ADAS warning gong. */
 #define PARKING_ASSIST_DLC               8U
