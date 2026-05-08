@@ -383,9 +383,20 @@ void SerialBridge::parseGatewayStatus(const QString &line)
     const int engineValid = valueFor("eng", -1);
     if (engineValid >= 0) {
         m_rpm = valueFor("rpm", m_rpm);
-        m_speed = valueFor("spd1", m_speed);
+        const int speed1A0 = valueFor("spd1", -1);
+        const int speed5A0 = valueFor("spd5", -1);
+        if (speed1A0 >= 0) {
+            m_speed = speed1A0;
+        } else if (speed5A0 >= 0) {
+            m_speed = speed5A0 * 2;
+        }
         m_coolant = valueFor("coolant", m_coolant);
         m_ignition = valueFor("ign", m_ignition ? 1 : 0) != 0;
+        m_clusterRpmActive = engineValid != 0 || m_rpm > 0;
+        m_clusterSpeedActive = engineValid != 0 || speed1A0 >= 0;
+        m_clusterSpeedNeedleActive = engineValid != 0 || speed5A0 >= 0;
+        m_clusterCoolantActive = engineValid != 0 || m_coolant > 0;
+        m_clusterIgnActive = engineValid != 0;
         m_lastEngineRx = nowString();
     }
 
@@ -393,6 +404,8 @@ void SerialBridge::parseGatewayStatus(const QString &line)
     if (bodyValid >= 0) {
         m_turnLeft = valueFor("left", m_turnLeft ? 1 : 0) != 0;
         m_turnRight = valueFor("right", m_turnRight ? 1 : 0) != 0;
+        m_clusterBodyActive = bodyValid != 0;
+        m_clusterTurnActive = bodyValid != 0;
         m_lastBodyRx = nowString();
     }
 

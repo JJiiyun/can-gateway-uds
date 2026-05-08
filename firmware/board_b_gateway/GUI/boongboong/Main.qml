@@ -480,7 +480,7 @@ ApplicationWindow {
                         x: 14
                         y: 12
                         width: parent.width - 28
-                        text: "CAN2 Output Watch"
+                        text: "Gateway Frame Watch"
                         color: root.textPrimary
                         font.pixelSize: 16
                         font.weight: Font.Bold
@@ -489,13 +489,13 @@ ApplicationWindow {
 
                     ListModel {
                         id: can2OutputModel
-                        ListElement { frameId: "0x100"; name: "IGN status"; period: "50 ms"; key: "ign" }
+                        ListElement { frameId: "0x100"; name: "IGN status input"; period: "50 ms"; key: "ign" }
                         ListElement { frameId: "0x280"; name: "RPM Motor_1"; period: "50 ms"; key: "rpm" }
                         ListElement { frameId: "0x1A0"; name: "Speed Bremse_1"; period: "50 ms"; key: "speed" }
                         ListElement { frameId: "0x5A0"; name: "Speed needle"; period: "50 ms"; key: "needle" }
                         ListElement { frameId: "0x288"; name: "Coolant Motor_2"; period: "100 ms"; key: "coolant" }
                         ListElement { frameId: "0x531"; name: "Turn status"; period: "100 ms"; key: "turn" }
-                        ListElement { frameId: "0x481"; name: "Engine warning"; period: "100 ms"; key: "warning" }
+                        ListElement { frameId: "0x481"; name: "Engine warning input"; period: "100 ms"; key: "warning" }
                     }
 
                     ListView {
