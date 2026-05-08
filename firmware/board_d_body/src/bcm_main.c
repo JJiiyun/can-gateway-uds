@@ -55,6 +55,7 @@ static uint8_t s_last_ign_on;
 static uint8_t s_brightness_fade_active;
 static uint8_t s_brightness_fade_level;
 static uint32_t s_last_brightness_fade_tick;
+static volatile uint8_t s_log_enabled;
 
 static const osThreadAttr_t s_input_task_attributes = {
     .name = "bcmInput",
@@ -96,6 +97,14 @@ static void log_input_if_changed(const BcmInput_State_t *input)
 
     BCM_Input_GetRawState(&raw);
 
+    if (s_log_enabled == 0U) {
+        s_last_logged_raw = raw;
+        s_last_logged_input = *input;
+        s_input_log_valid = 1U;
+        s_last_input_diag_tick = now;
+        return;
+    }
+
     if (!s_input_log_valid ||
         input_changed(input, &s_last_logged_input) ||
         input_changed(&raw, &s_last_logged_raw) ||
@@ -119,17 +128,26 @@ static void start_brightness_fade(uint32_t now)
 {
     s_brightness_fade_active = 1U;
     s_brightness_fade_level = 0U;
-    s_last_brightness_fade_tick = now - PERIOD_BRIGHTNESS_FADE_MS;
-    uartPrintf(0, "[BCM] Cluster brightness fade start id=0x%03X\r\n",
-               (unsigned int)CAN_ID_CLUSTER_BRIGHTNESS);
+    s_last_brightness_fade_tick = now;
+    if (s_log_enabled != 0U) {
+        uartPrintf(0, "[BCM] Cluster brightness fade start id=0x%03X\r\n",
+                   (unsigned int)CAN_ID_CLUSTER_BRIGHTNESS);
+    }
+}
+
+static void send_brightness_level(uint8_t level_percent)
+{
+    CAN_Msg_t msg;
+
+    BCM_Signal_BuildBrightnessFrame(level_percent, &msg);
+    (void)BCM_Can_SendBrightness(&msg);
 }
 
 static void update_brightness_fade(uint8_t ign_on, uint32_t now)
 {
-    CAN_Msg_t msg;
-
     if (ign_on && !s_last_ign_on) {
         start_brightness_fade(now);
+        send_brightness_level(s_brightness_fade_level);
     } else if (!ign_on) {
         s_brightness_fade_active = 0U;
         s_brightness_fade_level = 0U;
@@ -145,18 +163,15 @@ static void update_brightness_fade(uint8_t ign_on, uint32_t now)
         
         s_brightness_fade_level++;
         s_last_brightness_fade_tick = now;
+        send_brightness_level(s_brightness_fade_level);
         
         if (s_brightness_fade_level >= CAN_CLUSTER_BRIGHTNESS_MAX) {
             s_brightness_fade_active = 0U;
-            uartPrintf(0, "[BCM] Cluster brightness fade done level=%u\r\n",
-                       (unsigned int)s_brightness_fade_level);
+            if (s_log_enabled != 0U) {
+                uartPrintf(0, "[BCM] Cluster brightness fade done level=%u\r\n",
+                           (unsigned int)s_brightness_fade_level);
+            }
         }
-    }
-
-    /* While IGN is on and brightness is set, continuously send brightness frame */
-    if (ign_on && s_brightness_fade_level > 0U) {
-        BCM_Signal_BuildBrightnessFrame(s_brightness_fade_level, &msg);
-        (void)BCM_Can_SendBrightness(&msg);
     }
 }
 
@@ -175,6 +190,8 @@ void BCM_Body_Init(void)
     BCM_Cli_Init();
 
     (void)BCM_Can_Init();
+    s_log_enabled = 0U;
+    BCM_Can_SetLogEnabled(0U);
     (void)BCM_Body_IsIgnOn();
     (void)BCM_Body_GetTxCount();
     (void)BCM_Body_GetRxCount();
@@ -187,6 +204,7 @@ void BCM_Body_Init(void)
     uartPrintf(0, "==================================\r\n\r\n");
     uartPrintf(0, "[BCM] Turn module ready, wait_for_ign=%u\r\n",
                (unsigned)BCM_BODY_WAIT_FOR_IGN);
+    uartPrintf(0, "[BCM] logs are off. use 'body status', 'body monitor on 100', or 'body log on'\r\n");
     uartPrintf(0, "CLI > ");
 }
 
@@ -283,6 +301,17 @@ void BCM_Body_SetIgnOverride(int8_t override)
 int8_t BCM_Body_GetIgnOverride(void)
 {
     return s_ign_override;
+}
+
+void BCM_Body_SetLogEnabled(uint8_t enabled)
+{
+    s_log_enabled = enabled ? 1U : 0U;
+    BCM_Can_SetLogEnabled(s_log_enabled);
+}
+
+uint8_t BCM_Body_GetLogEnabled(void)
+{
+    return s_log_enabled;
 }
 
 /*

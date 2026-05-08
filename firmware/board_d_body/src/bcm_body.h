@@ -31,6 +31,8 @@ uint32_t BCM_Body_GetRxCount(void);
  */
 void BCM_Body_SetIgnOverride(int8_t override);
 int8_t BCM_Body_GetIgnOverride(void);
+void BCM_Body_SetLogEnabled(uint8_t enabled);
+uint8_t BCM_Body_GetLogEnabled(void);
 
 #ifdef __cplusplus
 }

@@ -22,21 +22,26 @@ static uint32_t s_throttle_count = 0U;
 static uint32_t s_log_interval_ms = 100U;
 static uint32_t s_last_rx_log_tick = 0U;
 static uint32_t s_last_tx_log_tick = 0U;
+static uint32_t s_last_rx_frame_tick = 0U;
+static uint32_t s_last_tx_frame_tick = 0U;
+
+static void reset_frame_timing(void)
+{
+    s_last_rx_frame_tick = 0U;
+    s_last_tx_frame_tick = 0U;
+}
 
 static bool id_matches(uint32_t id)
 {
     return !s_filter_enabled || id == s_filter_id;
 }
 
-static bool log_slot_available(uint32_t *last_tick)
+static bool log_slot_available(uint32_t *last_tick, uint32_t now)
 {
-    uint32_t now;
-
     if (s_log_interval_ms == 0U) {
         return true;
     }
 
-    now = osKernelGetTickCount();
     if (*last_tick == 0U ||
         (uint32_t)(now - *last_tick) >= s_log_interval_ms) {
         *last_tick = now;
@@ -48,11 +53,13 @@ static bool log_slot_available(uint32_t *last_tick)
 }
 
 static void print_frame_prefix(const char *dir, uint8_t bus, uint32_t id,
-                               uint8_t dlc)
+                               uint8_t dlc, uint32_t now, uint32_t dt)
 {
-    cliPrintf("[%s%u] id=0x%03lX dlc=%u data=",
+    cliPrintf("[%s%u t=%lu dt=%lu] id=0x%03lX dlc=%u data=",
               dir,
               (unsigned int)bus,
+              (unsigned long)now,
+              (unsigned long)dt,
               (unsigned long)id,
               (unsigned int)dlc);
 }
@@ -136,6 +143,7 @@ static void canlog_cmd(uint8_t argc, char *argv[])
 
     if (strcmp(argv[1], "on") == 0) {
         s_canlog_enabled = true;
+        reset_frame_timing();
         cliPrintf("canlog on\r\n");
         return;
     }
@@ -144,6 +152,7 @@ static void canlog_cmd(uint8_t argc, char *argv[])
         s_canlog_enabled = false;
         s_last_rx_log_tick = 0U;
         s_last_tx_log_tick = 0U;
+        reset_frame_timing();
         cliPrintf("canlog off\r\n");
         return;
     }
@@ -157,12 +166,14 @@ static void canlog_cmd(uint8_t argc, char *argv[])
         s_log_interval_ms = (uint32_t)strtoul(argv[2], NULL, 10);
         s_last_rx_log_tick = 0U;
         s_last_tx_log_tick = 0U;
+        reset_frame_timing();
         cliPrintf("canlog rate %lums\r\n", (unsigned long)s_log_interval_ms);
         return;
     }
 
     if (strcmp(argv[1], "all") == 0) {
         s_filter_enabled = false;
+        reset_frame_timing();
         cliPrintf("canlog filter all\r\n");
         return;
     }
@@ -175,12 +186,14 @@ static void canlog_cmd(uint8_t argc, char *argv[])
 
         if (strcmp(argv[2], "all") == 0) {
             s_filter_enabled = false;
+            reset_frame_timing();
             cliPrintf("canlog filter all\r\n");
             return;
         }
 
         s_filter_id = parse_id(argv[2]);
         s_filter_enabled = true;
+        reset_frame_timing();
         cliPrintf("canlog filter 0x%03lX\r\n", (unsigned long)s_filter_id);
         return;
     }
@@ -190,6 +203,7 @@ static void canlog_cmd(uint8_t argc, char *argv[])
         s_tx_log_count = 0U;
         s_drop_count = 0U;
         s_throttle_count = 0U;
+        reset_frame_timing();
         cliPrintf("canlog counters cleared\r\n");
         return;
     }
@@ -209,20 +223,29 @@ void CanCliMonitor_Init(void)
     s_log_interval_ms = 100U;
     s_last_rx_log_tick = 0U;
     s_last_tx_log_tick = 0U;
+    reset_frame_timing();
 
     (void)cliAdd("canlog", canlog_cmd);
 }
 
 void CanCliMonitor_LogRx(const CAN_RxMessage_t *rx_msg)
 {
+    uint32_t now;
+    uint32_t dt;
+
     if (!s_canlog_enabled || rx_msg == NULL || !id_matches(rx_msg->id)) {
         return;
     }
-    if (!log_slot_available(&s_last_rx_log_tick)) {
+
+    now = osKernelGetTickCount();
+    if (!log_slot_available(&s_last_rx_log_tick, now)) {
         return;
     }
 
-    print_frame_prefix("RX", rx_msg->bus, rx_msg->id, rx_msg->dlc);
+    dt = s_last_rx_frame_tick == 0U ? 0U : (uint32_t)(now - s_last_rx_frame_tick);
+    s_last_rx_frame_tick = now;
+
+    print_frame_prefix("RX", rx_msg->bus, rx_msg->id, rx_msg->dlc, now, dt);
     print_data(rx_msg->data, rx_msg->dlc);
     cliPrintf("\r\n");
     s_rx_log_count++;
@@ -231,14 +254,22 @@ void CanCliMonitor_LogRx(const CAN_RxMessage_t *rx_msg)
 void CanCliMonitor_LogTx(uint8_t bus, uint32_t id, const uint8_t *data,
                          uint8_t dlc, HAL_StatusTypeDef status)
 {
+    uint32_t now;
+    uint32_t dt;
+
     if (!s_canlog_enabled || !id_matches(id)) {
         return;
     }
-    if (!log_slot_available(&s_last_tx_log_tick)) {
+
+    now = osKernelGetTickCount();
+    if (!log_slot_available(&s_last_tx_log_tick, now)) {
         return;
     }
 
-    print_frame_prefix("TX", bus, id, dlc);
+    dt = s_last_tx_frame_tick == 0U ? 0U : (uint32_t)(now - s_last_tx_frame_tick);
+    s_last_tx_frame_tick = now;
+
+    print_frame_prefix("TX", bus, id, dlc, now, dt);
     print_data(data, dlc);
     cliPrintf(" st=%d\r\n", (int)status);
 

@@ -92,13 +92,16 @@ body turn both 0
 
 body all off
 body status
+body log on
+body log off
+body log stat
 body monitor on 200
 body monitor off
 body monitor once
 body reset
 ```
 
-`body ign auto` uses CAN-derived IGN. `body ign on` and `body ign off` are bench-test overrides. The periodic `[BCM] INPUT` log plus `body status` and `body monitor` include raw GPIO state, where `1` means the active-low switch input is currently pressed.
+`body ign auto` uses CAN-derived IGN. `body ign on` and `body ign off` are bench-test overrides. Boot-time debug logs are off by default. Use `body status` for one-shot inspection, `body monitor on 100` for periodic verification output, and `body log on` only when raw `[BCM] INPUT` / TX debug logs are needed. `body status` and `body monitor` include raw GPIO state, where `1` means the active-low switch input is currently pressed.
 
 ## Verification
 

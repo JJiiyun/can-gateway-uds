@@ -40,6 +40,8 @@ extern CAN_HandleTypeDef hcan1;
 #endif
 
 static volatile AdasCanStats_t s_stats;
+static volatile uint32_t s_last_status_tx_tick;
+static volatile uint32_t s_last_rx_tick;
 static volatile uint32_t s_last_speed_rx_tick;
 static volatile uint32_t s_last_ign_rx_tick;
 static volatile uint8_t s_ign_on;
@@ -76,14 +78,24 @@ static uint16_t decode_cluster_speed_5a0(const CAN_RxMessage_t *rx)
 
 static void update_vehicle_speed(uint16_t speed_kmh)
 {
+    uint32_t now = HAL_GetTick();
+
     s_stats.speed_kmh = speed_kmh;
-    s_last_speed_rx_tick = HAL_GetTick();
+    if (s_last_speed_rx_tick != 0U) {
+        s_stats.speed_rx_period_ms = now - s_last_speed_rx_tick;
+    }
+    s_last_speed_rx_tick = now;
 }
 
 static void update_ign_status(const CAN_RxMessage_t *rx)
 {
+    uint32_t now = HAL_GetTick();
+
     s_ign_on = ign_status_frame_is_on(rx);
-    s_last_ign_rx_tick = HAL_GetTick();
+    if (s_last_ign_rx_tick != 0U) {
+        s_stats.ign_rx_period_ms = now - s_last_ign_rx_tick;
+    }
+    s_last_ign_rx_tick = now;
     s_stats.engine_active = s_ign_on;
 
     if (s_ign_on == 0U) {
@@ -103,6 +115,8 @@ static uint8_t ign_status_recent(uint32_t now)
 int ADAS_Can_Init(void)
 {
     memset((void *)&s_stats, 0, sizeof(s_stats));
+    s_last_status_tx_tick = 0U;
+    s_last_rx_tick = 0U;
     s_last_speed_rx_tick = 0U;
     s_last_ign_rx_tick = 0U;
     s_ign_on = 0U;
@@ -125,6 +139,14 @@ void ADAS_Can_PollRx(uint32_t timeout_ms)
     }
 
     s_stats.rx_count++;
+    {
+        uint32_t now = HAL_GetTick();
+
+        if (s_last_rx_tick != 0U) {
+            s_stats.rx_period_ms = now - s_last_rx_tick;
+        }
+        s_last_rx_tick = now;
+    }
 
     if (rx.bus != 1U) {
         return;
@@ -195,12 +217,37 @@ int ADAS_Can_SendStatus(const AdasStatus_t *status)
     }
 
     s_stats.tx_count++;
+    {
+        uint32_t now = HAL_GetTick();
+
+        if (s_last_status_tx_tick != 0U) {
+            s_stats.status_tx_period_ms = now - s_last_status_tx_tick;
+        }
+        s_last_status_tx_tick = now;
+    }
+
     return 0;
 }
 
 void ADAS_Can_GetStats(AdasCanStats_t *out_stats)
 {
     if (out_stats != NULL) {
-        *out_stats = s_stats;
+        AdasCanStats_t snapshot = s_stats;
+        uint32_t now = HAL_GetTick();
+
+        if (s_last_status_tx_tick != 0U) {
+            snapshot.status_tx_age_ms = now - s_last_status_tx_tick;
+        }
+        if (s_last_rx_tick != 0U) {
+            snapshot.rx_age_ms = now - s_last_rx_tick;
+        }
+        if (s_last_ign_rx_tick != 0U) {
+            snapshot.ign_rx_age_ms = now - s_last_ign_rx_tick;
+        }
+        if (s_last_speed_rx_tick != 0U) {
+            snapshot.speed_rx_age_ms = now - s_last_speed_rx_tick;
+        }
+
+        *out_stats = snapshot;
     }
 }

@@ -17,6 +17,17 @@ typedef struct {
     uint32_t tx_count;
     uint32_t rx_count;
     uint32_t tx_error_count;
+    uint32_t turn_tx_count;
+    uint32_t brightness_tx_count;
+    uint32_t ign_rx_count;
+    uint32_t turn_tx_period_ms;
+    uint32_t brightness_tx_period_ms;
+    uint32_t ign_rx_period_ms;
+    uint32_t turn_tx_age_ms;
+    uint32_t brightness_tx_age_ms;
+    uint32_t ign_rx_age_ms;
+    uint8_t ign_valid;
+    uint8_t ign_on;
 } BcmCan_Stats_t;
 
 int BCM_Can_Init(void);
@@ -27,6 +38,8 @@ void BCM_Can_OnRx(const CAN_Msg_t *msg);
 
 uint8_t BCM_Can_IsIgnOn(void);
 void BCM_Can_GetStats(BcmCan_Stats_t *out_stats);
+void BCM_Can_SetLogEnabled(uint8_t enabled);
+uint8_t BCM_Can_GetLogEnabled(void);
 
 #ifdef __cplusplus
 }

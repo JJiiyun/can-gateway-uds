@@ -13,6 +13,14 @@ typedef struct {
     uint32_t tx_count;
     uint32_t rx_count;
     uint32_t tx_error_count;
+    uint32_t status_tx_period_ms;
+    uint32_t status_tx_age_ms;
+    uint32_t rx_period_ms;
+    uint32_t rx_age_ms;
+    uint32_t ign_rx_period_ms;
+    uint32_t ign_rx_age_ms;
+    uint32_t speed_rx_period_ms;
+    uint32_t speed_rx_age_ms;
     uint16_t speed_kmh;
     uint8_t engine_active;
 } AdasCanStats_t;

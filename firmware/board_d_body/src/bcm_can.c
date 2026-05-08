@@ -25,7 +25,10 @@ extern CAN_HandleTypeDef hcan1;
 static volatile uint8_t s_ign_on;
 static volatile uint8_t s_ign_frame_valid;
 static volatile uint32_t s_last_ign_rx_tick;
+static volatile uint32_t s_last_turn_tx_tick;
+static volatile uint32_t s_last_brightness_tx_tick;
 static volatile BcmCan_Stats_t s_stats;
+static volatile uint8_t s_log_enabled;
 
 static uint8_t get_bit(const uint8_t *data, uint8_t bit)
 {
@@ -65,6 +68,9 @@ int BCM_Can_Init(void)
     s_ign_on = 0U;
     s_ign_frame_valid = 0U;
     s_last_ign_rx_tick = 0U;
+    s_last_turn_tx_tick = 0U;
+    s_last_brightness_tx_tick = 0U;
+    s_log_enabled = 0U;
 
     if (CAN_BSP_Init() != HAL_OK) {
         uartPrintf(0, "[BCM] CAN BSP init failed\r\n");
@@ -105,7 +111,26 @@ static int send_checked_frame(const CAN_Msg_t *msg, uint8_t id_ok,
     }
 
     s_stats.tx_count++;
-    if (s_stats.tx_count == 1U || (s_stats.tx_count % 10U) == 0U) {
+    {
+        uint32_t now = HAL_GetTick();
+
+        if (is_turn_tx_id(msg->id)) {
+            s_stats.turn_tx_count++;
+            if (s_last_turn_tx_tick != 0U) {
+                s_stats.turn_tx_period_ms = now - s_last_turn_tx_tick;
+            }
+            s_last_turn_tx_tick = now;
+        } else if (is_brightness_tx_id(msg->id)) {
+            s_stats.brightness_tx_count++;
+            if (s_last_brightness_tx_tick != 0U) {
+                s_stats.brightness_tx_period_ms = now - s_last_brightness_tx_tick;
+            }
+            s_last_brightness_tx_tick = now;
+        }
+    }
+
+    if (s_log_enabled != 0U &&
+        (s_stats.tx_count == 1U || (s_stats.tx_count % 10U) == 0U)) {
         uartPrintf(0,
                    "[BCM] CAN1 TX OK %s id=0x%03lX tx=%lu data=%02X %02X %02X %02X %02X %02X %02X %02X hal=0x%08lX\r\n",
                    name,
@@ -170,7 +195,15 @@ void BCM_Can_OnRx(const CAN_Msg_t *msg)
     prev_ign = s_ign_on;
     s_ign_on = ign_on;
     s_ign_frame_valid = 1U;
-    s_last_ign_rx_tick = HAL_GetTick();
+    {
+        uint32_t now = HAL_GetTick();
+
+        s_stats.ign_rx_count++;
+        if (s_last_ign_rx_tick != 0U) {
+            s_stats.ign_rx_period_ms = now - s_last_ign_rx_tick;
+        }
+        s_last_ign_rx_tick = now;
+    }
 
     if (prev_ign != s_ign_on) {
         uartPrintf(0, "[BCM] IGN %s via %s (id=0x%03lX)\r\n",
@@ -199,6 +232,31 @@ uint8_t BCM_Can_IsIgnOn(void)
 void BCM_Can_GetStats(BcmCan_Stats_t *out_stats)
 {
     if (out_stats != NULL) {
-        *out_stats = s_stats;
+        BcmCan_Stats_t snapshot = s_stats;
+        uint32_t now = HAL_GetTick();
+
+        if (s_last_turn_tx_tick != 0U) {
+            snapshot.turn_tx_age_ms = now - s_last_turn_tx_tick;
+        }
+        if (s_last_brightness_tx_tick != 0U) {
+            snapshot.brightness_tx_age_ms = now - s_last_brightness_tx_tick;
+        }
+        if (s_last_ign_rx_tick != 0U) {
+            snapshot.ign_rx_age_ms = now - s_last_ign_rx_tick;
+        }
+        snapshot.ign_valid = s_ign_frame_valid;
+        snapshot.ign_on = s_ign_on;
+
+        *out_stats = snapshot;
     }
+}
+
+void BCM_Can_SetLogEnabled(uint8_t enabled)
+{
+    s_log_enabled = enabled ? 1U : 0U;
+}
+
+uint8_t BCM_Can_GetLogEnabled(void)
+{
+    return s_log_enabled;
 }
