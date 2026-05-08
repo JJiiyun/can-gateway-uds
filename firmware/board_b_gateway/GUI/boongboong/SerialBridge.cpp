@@ -12,6 +12,11 @@ SerialBridge::SerialBridge(QObject *parent)
     connect(&m_serial, &QSerialPort::errorOccurred, this, &SerialBridge::onErrorOccurred);
     connect(&m_pollTimer, &QTimer::timeout, this, &SerialBridge::onPollSerial);
     m_pollTimer.setInterval(25);
+    
+    connect(&m_blinkTimer, &QTimer::timeout, this, &SerialBridge::onBlinkTimer);
+    m_blinkTimer.setInterval(500);
+    m_blinkTimer.start();
+    
     refreshPorts();
     setStatusText("Select a serial port");
 }
@@ -48,6 +53,8 @@ bool SerialBridge::doorRl() const { return m_doorRl; }
 bool SerialBridge::doorRr() const { return m_doorRr; }
 bool SerialBridge::turnLeft() const { return m_turnLeft; }
 bool SerialBridge::turnRight() const { return m_turnRight; }
+bool SerialBridge::turnLeftBlink() const { return m_turnLeftBlink; }
+bool SerialBridge::turnRightBlink() const { return m_turnRightBlink; }
 bool SerialBridge::highBeam() const { return m_highBeam; }
 bool SerialBridge::fogLamp() const { return m_fogLamp; }
 QString SerialBridge::lastBodyRx() const { return m_lastBodyRx; }
@@ -153,6 +160,8 @@ void SerialBridge::resetMonitor()
     m_doorRr = false;
     m_turnLeft = false;
     m_turnRight = false;
+    m_turnLeftBlink = false;
+    m_turnRightBlink = false;
     m_highBeam = false;
     m_fogLamp = false;
     m_lastBodyRx = "-";
@@ -391,33 +400,46 @@ void SerialBridge::parseGatewayStatus(const QString &line)
         m_rpm = valueFor("rpm", m_rpm);
         const int speed1A0 = valueFor("spd1", -1);
         const int speed5A0 = valueFor("spd5", -1);
-        if (speed1A0 >= 0) {
+        if (speed5A0 >= 0) {
+            m_speed = speed5A0;
+        } else if (speed1A0 >= 0) {
             m_speed = speed1A0;
-        } else if (speed5A0 >= 0) {
-            m_speed = speed5A0 * 2;
         }
         m_coolant = valueFor("coolant", m_coolant);
         m_ignition = valueFor("ign", m_ignition ? 1 : 0) != 0;
         m_clusterRpmActive = engineValid != 0 || m_rpm > 0;
-        m_clusterSpeedActive = engineValid != 0 || speed1A0 >= 0;
+        m_clusterSpeedActive = engineValid != 0 || speed5A0 >= 0;
         m_clusterSpeedNeedleActive = engineValid != 0 || speed5A0 >= 0;
         m_clusterCoolantActive = engineValid != 0 || m_coolant > 0;
         m_clusterIgnActive = engineValid != 0;
         m_lastEngineRx = nowString();
     }
 
+    m_engineRpmWarning = valueFor("rpmwarn", m_engineRpmWarning ? 1 : 0) != 0;
+    m_engineCoolantWarning = valueFor("coolwarn", m_engineCoolantWarning ? 1 : 0) != 0;
+    m_engineGeneralWarning = valueFor("genwarn", m_engineGeneralWarning ? 1 : 0) != 0;
+
     const int bodyValid = valueFor("body", -1);
     if (bodyValid >= 0) {
-        m_turnLeft = valueFor("left", m_turnLeft ? 1 : 0) != 0;
-        m_turnRight = valueFor("right", m_turnRight ? 1 : 0) != 0;
+        const bool hazard = valueFor("hazard", 0) != 0;
+        m_turnLeft = hazard || valueFor("left", m_turnLeft ? 1 : 0) != 0;
+        m_turnRight = hazard || valueFor("right", m_turnRight ? 1 : 0) != 0;
         m_clusterBodyActive = bodyValid != 0;
         m_clusterTurnActive = bodyValid != 0;
         m_lastBodyRx = nowString();
     }
 
+    const bool engineWarning = valueFor("ewarn",
+                                        (m_engineRpmWarning ||
+                                         m_engineCoolantWarning ||
+                                         m_engineGeneralWarning) ? 1 : 0) != 0 ||
+                               m_engineRpmWarning ||
+                               m_engineCoolantWarning ||
+                               m_engineGeneralWarning;
     m_warning = valueFor("warn", (m_adasRisk >= 2 || m_adasFault != 0) ? 1 : 0) != 0 ||
                 m_adasRisk >= 2 ||
-                m_adasFault != 0;
+                m_adasFault != 0 ||
+                engineWarning;
 
     if (!matched) {
         return;
@@ -561,8 +583,6 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
         QString decoded = "cluster speed frame";
         if (bytes.size() >= 4) {
             const int clusterSpeed = ((bytes[2] | (bytes[3] << 8)) / 80);
-            m_speed = clusterSpeed;
-            m_lastEngineRx = nowString();
             decoded = QString("cluster_speed=%1 km/h").arg(clusterSpeed);
         }
 
@@ -599,18 +619,15 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
         return "cluster speed needle frame";
     }
 
-    if (id == "0x481" || id == "0x480") {
+    if (id == "0x481") {
         const bool rpmWarning = !bytes.isEmpty() && ((bytes[0] & 0x01) != 0);
         const bool coolantWarning = !bytes.isEmpty() && ((bytes[0] & 0x02) != 0);
         const bool general = !bytes.isEmpty() && ((bytes[0] & 0x04) != 0);
         const int warningRpm = bytes.size() >= 4 ? (bytes[2] | (bytes[3] << 8)) : 0;
         const int warningCoolant = bytes.size() >= 2 ? bytes[1] : 0;
-        if (id == "0x481") {
-            m_engineRpmWarning = rpmWarning;
-            m_engineCoolantWarning = coolantWarning;
-            m_engineGeneralWarning = general;
-        }
-
+        m_engineRpmWarning = rpmWarning;
+        m_engineCoolantWarning = coolantWarning;
+        m_engineGeneralWarning = general;
         m_warning = rpmWarning || coolantWarning || general;
         emit dataChanged();
         return QString("engine_warning rpm_warn=%1 coolant_warn=%2 general=%3 rpm=%4 coolant=%5")
@@ -652,4 +669,21 @@ bool SerialBridge::bitAt(const QList<int> &bytes, int bit) const
         return false;
     }
     return (bytes[byteIndex] & (1 << bitIndex)) != 0;
+}
+
+void SerialBridge::onBlinkTimer()
+{
+    if (m_turnLeft) {
+        m_turnLeftBlink = !m_turnLeftBlink;
+    } else {
+        m_turnLeftBlink = false;
+    }
+    
+    if (m_turnRight) {
+        m_turnRightBlink = !m_turnRightBlink;
+    } else {
+        m_turnRightBlink = false;
+    }
+    
+    emit dataChanged();
 }

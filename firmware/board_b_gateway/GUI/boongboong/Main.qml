@@ -51,6 +51,8 @@ ApplicationWindow {
         property bool turnRight: serialBridge.turnRight
         property bool highBeam: serialBridge.highBeam
         property bool fogLamp: serialBridge.fogLamp
+        property bool turnLeftBlink: serialBridge.turnLeftBlink
+        property bool turnRightBlink: serialBridge.turnRightBlink
         property bool adasValid: serialBridge.adasValid
         property int adasRisk: serialBridge.adasRisk
         property int adasFault: serialBridge.adasFault
@@ -421,8 +423,8 @@ ApplicationWindow {
                     elide: Text.ElideRight
                 }
 
-                StatusPill { x: 18; y: 238; width: routerPanel.tileW; height: 34; label: "Left"; active: gateway.turnLeft }
-                StatusPill { x: 32 + routerPanel.tileW; y: 238; width: routerPanel.tileW; height: 34; label: "Right"; active: gateway.turnRight }
+                StatusPill { x: 18; y: 238; width: routerPanel.tileW; height: 34; label: "Left"; active: gateway.turnLeftBlink }
+                StatusPill { x: 32 + routerPanel.tileW; y: 238; width: routerPanel.tileW; height: 34; label: "Right"; active: gateway.turnRightBlink }
                 StatusPill { x: 46 + routerPanel.tileW * 2; y: 238; width: routerPanel.tileW; height: 34; label: "Hazard"; active: gateway.turnLeft && gateway.turnRight }
                 StatusPill { x: 60 + routerPanel.tileW * 3; y: 238; width: routerPanel.tileW; height: 34; label: "Seen"; active: serialBridge.lastBodyRx !== "-" }
 

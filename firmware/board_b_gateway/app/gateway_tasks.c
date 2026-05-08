@@ -146,6 +146,7 @@ void LoggerTask(void *argument)
                        "adas=%u risk=%u fault=0x%02X dtc=0x%02X gong=0x%02X "
                        "front=%u rear=%u speed=%u alive=%u "
                        "eng=%u rpm=%u spd1=%u spd5=%u coolant=%u ign=%u "
+                       "ewarn=%u rpmwarn=%u coolwarn=%u genwarn=%u "
                        "body=%u left=%u right=%u hazard=%u\r\n",
                        (unsigned long)can1RxCount,
                        (unsigned long)can1TxCount,
@@ -172,6 +173,12 @@ void LoggerTask(void *argument)
                        (unsigned int)monitor.speed_5a0,
                        (unsigned int)monitor.coolant,
                        (unsigned int)monitor.ignition_on,
+                       (unsigned int)(monitor.engine_rpm_warning ||
+                                      monitor.engine_coolant_warning ||
+                                      monitor.engine_general_warning),
+                       (unsigned int)monitor.engine_rpm_warning,
+                       (unsigned int)monitor.engine_coolant_warning,
+                       (unsigned int)monitor.engine_general_warning,
                        (unsigned int)monitor.turn_valid,
                        (unsigned int)monitor.turn_left,
                        (unsigned int)monitor.turn_right,

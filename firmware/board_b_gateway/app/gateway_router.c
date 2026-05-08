@@ -10,6 +10,7 @@ extern CAN_HandleTypeDef hcan2;
 
 #define CAN1_PORT 1U
 #define CAN2_PORT 2U
+#define GATEWAY_TURN_MONITOR_HOLD_MS 1200U
 
 typedef struct {
     uint32_t can_id;
@@ -31,6 +32,12 @@ static const GatewayRoute_t s_route_table[] = {
 
 static GatewayRouterStats_t s_stats;
 static GatewayRouterMonitor_t s_monitor;
+static uint32_t s_last_turn_left_tick;
+static uint32_t s_last_turn_right_tick;
+static uint32_t s_last_hazard_tick;
+static uint8_t s_seen_turn_left;
+static uint8_t s_seen_turn_right;
+static uint8_t s_seen_hazard;
 
 static CAN_HandleTypeDef *bus_to_handle(uint8_t bus)
 {
@@ -59,6 +66,13 @@ static uint16_t get_u16_le(const uint8_t *data, uint8_t idx)
 {
     return (uint16_t)(((uint16_t)data[idx + 1U] << 8) | data[idx]);
 }
+
+static uint8_t recent_tick(uint32_t now, uint32_t last_tick, uint8_t seen)
+{
+    return seen != 0U &&
+           (uint32_t)(now - last_tick) <= GATEWAY_TURN_MONITOR_HOLD_MS;
+}
+
 static uint16_t clamp_speed(uint16_t speed)
 {
     if (speed > CAN_CLUSTER_SPEED_MAX_KMH) {
@@ -93,7 +107,7 @@ static void update_monitor(const CAN_RxMessage_t *rx_msg)
 {
     uint16_t raw;
 
-    if (rx_msg == NULL || rx_msg->bus != CAN1_PORT || rx_msg->dlc < 3U) {
+    if (rx_msg == NULL || rx_msg->bus != CAN1_PORT) {
         return;
     }
 
@@ -115,8 +129,10 @@ static void update_monitor(const CAN_RxMessage_t *rx_msg)
         break;
 
     case CAN_ID_CLUSTER_SPEED_5A0:
-        s_monitor.speed_5a0 = decode_speed_5a0(rx_msg->data[CAN_CLUSTER_SPEED_5A0_VALUE_IDX]);
-        s_monitor.engine_valid = 1U;
+        if (rx_msg->dlc > CAN_CLUSTER_SPEED_5A0_VALUE_IDX) {
+            s_monitor.speed_5a0 = decode_speed_5a0(rx_msg->data[CAN_CLUSTER_SPEED_5A0_VALUE_IDX]);
+            s_monitor.engine_valid = 1U;
+        }
         break;
 
     case CAN_ID_CLUSTER_COOLANT:
@@ -134,10 +150,38 @@ static void update_monitor(const CAN_RxMessage_t *rx_msg)
         break;
 
     case CAN_ID_CLUSTER_TURN:
-        s_monitor.turn_left = (rx_msg->data[2] & 0x01U) != 0U ? 1U : 0U;
-        s_monitor.turn_right = (rx_msg->data[2] & 0x02U) != 0U ? 1U : 0U;
-        s_monitor.hazard = (rx_msg->data[2] & 0x04U) != 0U ? 1U : 0U;
-        s_monitor.turn_valid = 1U;
+        if (rx_msg->dlc >= 3U) {
+            uint32_t now = osKernelGetTickCount();
+            uint8_t left_now = (rx_msg->data[2] & 0x01U) != 0U ? 1U : 0U;
+            uint8_t right_now = (rx_msg->data[2] & 0x02U) != 0U ? 1U : 0U;
+            uint8_t hazard_now = (rx_msg->data[2] & 0x04U) != 0U ? 1U : 0U;
+
+            if (left_now != 0U) {
+                s_last_turn_left_tick = now;
+                s_seen_turn_left = 1U;
+            }
+            if (right_now != 0U) {
+                s_last_turn_right_tick = now;
+                s_seen_turn_right = 1U;
+            }
+            if (hazard_now != 0U) {
+                s_last_hazard_tick = now;
+                s_seen_hazard = 1U;
+            }
+
+            s_monitor.turn_left = recent_tick(now, s_last_turn_left_tick, s_seen_turn_left);
+            s_monitor.turn_right = recent_tick(now, s_last_turn_right_tick, s_seen_turn_right);
+            s_monitor.hazard = recent_tick(now, s_last_hazard_tick, s_seen_hazard);
+            s_monitor.turn_valid = 1U;
+        }
+        break;
+
+    case CAN_ID_ENGINE_WARNING_STATUS:
+        if (rx_msg->dlc >= 1U) {
+            s_monitor.engine_rpm_warning = (rx_msg->data[0] & 0x01U) != 0U ? 1U : 0U;
+            s_monitor.engine_coolant_warning = (rx_msg->data[0] & 0x02U) != 0U ? 1U : 0U;
+            s_monitor.engine_general_warning = (rx_msg->data[0] & 0x04U) != 0U ? 1U : 0U;
+        }
         break;
 
     default:
@@ -149,6 +193,12 @@ void GatewayRouter_Init(void)
 {
     memset(&s_stats, 0, sizeof(s_stats));
     memset(&s_monitor, 0, sizeof(s_monitor));
+    s_last_turn_left_tick = 0U;
+    s_last_turn_right_tick = 0U;
+    s_last_hazard_tick = 0U;
+    s_seen_turn_left = 0U;
+    s_seen_turn_right = 0U;
+    s_seen_hazard = 0U;
 }
 
 void GatewayRouter_OnRx(const CAN_RxMessage_t *rx_msg)
