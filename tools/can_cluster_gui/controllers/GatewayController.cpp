@@ -263,7 +263,7 @@ QString GatewayController::decodeFrame(const QString &id, const QList<int> &byte
     if (id == QStringLiteral("0x1A0")) {
         QString decoded = QStringLiteral("cluster speed frame");
         if (bytes.size() >= 4) {
-            const int clusterSpeed = static_cast<int>(leSignal(bytes, 17, 15) / 100U);
+            const int clusterSpeed = (bytes[2] | (bytes[3] << 8)) / 80;
             decoded = QStringLiteral("cluster_speed=%1 km/h").arg(clusterSpeed);
         }
         if (dir == QStringLiteral("TX")) {
@@ -274,22 +274,32 @@ QString GatewayController::decodeFrame(const QString &id, const QList<int> &byte
 
     if (id == QStringLiteral("0x288")) {
         if (bytes.size() >= 2) {
-            const int raw = static_cast<int>(leSignal(bytes, 8, 8));
-            const int temp = (raw * 3) / 4 - 48;
-            return QStringLiteral("cluster_coolant=%1 C").arg(temp);
+            return QStringLiteral("cluster_coolant=%1 C").arg(bytes[1]);
         }
         return QStringLiteral("cluster coolant frame");
     }
 
-    if (id == QStringLiteral("0x480")) {
-        m_warning = true;
+    if (id == QStringLiteral("0x5A0")) {
+        if (bytes.size() >= 3) {
+            const int needleSpeed = bytes[2] * 2;
+            return QStringLiteral("cluster_speed_needle=%1 km/h").arg(needleSpeed);
+        }
+        return QStringLiteral("cluster speed needle frame");
+    }
+
+    if (id == QStringLiteral("0x481") || id == QStringLiteral("0x480")) {
         const bool rpmWarning = !bytes.isEmpty() && ((bytes[0] & 0x01) != 0);
         const bool overheat = !bytes.isEmpty() && ((bytes[0] & 0x02) != 0);
         const bool general = !bytes.isEmpty() && ((bytes[0] & 0x04) != 0);
-        return QStringLiteral("warning rpm=%1 overheat=%2 general=%3")
+        const int coolant = bytes.size() >= 2 ? bytes[1] : 0;
+        const int rpm = bytes.size() >= 4 ? (bytes[2] | (bytes[3] << 8)) : 0;
+        m_warning = rpmWarning || overheat || general;
+        return QStringLiteral("engine_warning rpm_warn=%1 coolant_warn=%2 general=%3 rpm=%4 coolant=%5")
             .arg(rpmWarning ? 1 : 0)
             .arg(overheat ? 1 : 0)
-            .arg(general ? 1 : 0);
+            .arg(general ? 1 : 0)
+            .arg(rpm)
+            .arg(coolant);
     }
 
     if ((id == QStringLiteral("0x714") || id == QStringLiteral("0x7E0") ||

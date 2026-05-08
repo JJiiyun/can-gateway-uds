@@ -383,9 +383,20 @@ void SerialBridge::parseGatewayStatus(const QString &line)
     const int engineValid = valueFor("eng", -1);
     if (engineValid >= 0) {
         m_rpm = valueFor("rpm", m_rpm);
-        m_speed = valueFor("spd1", m_speed);
+        const int speed1A0 = valueFor("spd1", -1);
+        const int speed5A0 = valueFor("spd5", -1);
+        if (speed1A0 >= 0) {
+            m_speed = speed1A0;
+        } else if (speed5A0 >= 0) {
+            m_speed = speed5A0 * 2;
+        }
         m_coolant = valueFor("coolant", m_coolant);
         m_ignition = valueFor("ign", m_ignition ? 1 : 0) != 0;
+        m_clusterRpmActive = engineValid != 0 || m_rpm > 0;
+        m_clusterSpeedActive = engineValid != 0 || speed1A0 >= 0;
+        m_clusterSpeedNeedleActive = engineValid != 0 || speed5A0 >= 0;
+        m_clusterCoolantActive = engineValid != 0 || m_coolant > 0;
+        m_clusterIgnActive = engineValid != 0;
         m_lastEngineRx = nowString();
     }
 
@@ -393,6 +404,8 @@ void SerialBridge::parseGatewayStatus(const QString &line)
     if (bodyValid >= 0) {
         m_turnLeft = valueFor("left", m_turnLeft ? 1 : 0) != 0;
         m_turnRight = valueFor("right", m_turnRight ? 1 : 0) != 0;
+        m_clusterBodyActive = bodyValid != 0;
+        m_clusterTurnActive = bodyValid != 0;
         m_lastBodyRx = nowString();
     }
 
@@ -569,7 +582,7 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
 
     if (id == "0x5A0") {
         if (bytes.size() >= 3) {
-            m_speed = bytes[2];
+            m_speed = bytes[2] * 2;
             m_lastEngineRx = nowString();
             if (dir == "TX") {
                 m_clusterSpeedNeedleActive = true;
@@ -580,18 +593,20 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
         return "cluster speed needle frame";
     }
 
-    if (id == "0x480") {
-        const bool heat = bitAt(bytes, 12);
-        const bool lamp = bitAt(bytes, 40);
-        const bool faultLamp = bitAt(bytes, 44);
-        const bool text = bitAt(bytes, 54);
-        m_warning = heat || lamp || faultLamp || text;
+    if (id == "0x481" || id == "0x480") {
+        const bool rpmWarning = !bytes.isEmpty() && ((bytes[0] & 0x01) != 0);
+        const bool coolantWarning = !bytes.isEmpty() && ((bytes[0] & 0x02) != 0);
+        const bool general = !bytes.isEmpty() && ((bytes[0] & 0x04) != 0);
+        const int warningRpm = bytes.size() >= 4 ? (bytes[2] | (bytes[3] << 8)) : 0;
+        const int warningCoolant = bytes.size() >= 2 ? bytes[1] : 0;
+        m_warning = rpmWarning || coolantWarning || general;
         emit dataChanged();
-        return QString("mMotor_5 warn heat=%1 lamp=%2 fault=%3 text=%4")
-            .arg(heat ? 1 : 0)
-            .arg(lamp ? 1 : 0)
-            .arg(faultLamp ? 1 : 0)
-            .arg(text ? 1 : 0);
+        return QString("engine_warning rpm_warn=%1 coolant_warn=%2 general=%3 rpm=%4 coolant=%5")
+            .arg(rpmWarning ? 1 : 0)
+            .arg(coolantWarning ? 1 : 0)
+            .arg(general ? 1 : 0)
+            .arg(warningRpm)
+            .arg(warningCoolant);
     }
 
     return "";

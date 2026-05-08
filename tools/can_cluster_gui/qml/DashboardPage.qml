@@ -104,7 +104,7 @@ Rectangle {
                 StatusPill { x: 0; y: 0; width: parent.width; height: 38; label: "0x280 Motor_1 RPM"; active: gateway.clusterRpmActive; activeText: "LIVE"; inactiveText: "IDLE" }
                 StatusPill { x: 0; y: 48; width: parent.width; height: 38; label: "0x1A0 Bremse_1 Speed"; active: gateway.clusterSpeedActive; activeText: "LIVE"; inactiveText: "IDLE" }
                 StatusPill { x: 0; y: 96; width: parent.width; height: 38; label: "0x390 Body Forward"; active: gateway.clusterBodyActive; activeText: "LIVE"; inactiveText: "IDLE" }
-                StatusPill { x: 0; y: 144; width: parent.width; height: 38; label: "0x480 Warning / Safety"; active: gateway.warning; activeColor: "#ffb020"; activeText: "WARN"; inactiveText: "OK" }
+                StatusPill { x: 0; y: 144; width: parent.width; height: 38; label: "0x481 Engine Warning"; active: gateway.warning; activeColor: "#ffb020"; activeText: "WARN"; inactiveText: "OK" }
 
                 Text {
                     x: 0
