@@ -415,6 +415,21 @@ static uint16_t EngineSim_EncodeRpmRaw(uint16_t rpm)
     return (uint16_t)(rpm * 4U);
 }
 
+static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed)
+{
+    /*
+     * 0x1A0
+     * 예시 프레임:
+     * 08 00 20 4E 00 00 00 00
+     *
+     * byte[2]~byte[3] = speed * 80
+     *
+     * Gateway/ADAS/Qt monitor all decode this frame with raw / 80.
+     */
+    return (uint16_t)(speed * 80U);
+    return (uint16_t)(speed * 80U);
+}
+
 static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed)
 {
     /*

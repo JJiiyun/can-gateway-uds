@@ -131,7 +131,7 @@ Board B does not forward Board E's raw `0x3A0` to CAN2 by default, because Golf 
 | Byte | Meaning |
 |---:|---|
 | `byte[0]` | Fixed `0x08` |
-| `byte[2..3]` | little-endian speed raw, `km/h * 160` |
+| `byte[2..3]` | little-endian speed raw, `km/h * 80` |
 
 ### Board A `0x5A0` Speed Needle
 

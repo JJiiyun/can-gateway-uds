@@ -23,7 +23,7 @@ Board E reads CAN frames through `CAN_BSP_Read()`.
 | CAN ID | DLC | Sender | Field | Use |
 |---:|---:|---|---|---|
 | `0x100` | 8 | Board A | `byte[5] bit0` | IGN ON gate |
-| `0x1A0` | 8 | Board A | `byte[2..3]` little-endian raw, `km/h * 160` | Vehicle speed reference |
+| `0x1A0` | 8 | Board A | `byte[2..3]` little-endian raw, `km/h * 80` | Vehicle speed reference |
 | `0x5A0` | 8 | Board A | `byte[2]` | Vehicle speed reference |
 
 Important behavior:

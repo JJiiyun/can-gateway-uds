@@ -38,7 +38,7 @@ Board A EngineSim은 기존 `0x100` 통합 프레임 대신 아래 계기판 CAN
 | CAN ID | DLC | 의미 | 주요 payload |
 |---:|---:|---|---|
 | `0x280` | 8 | RPM 계기판 바늘 | `byte[2]~byte[3]` little-endian raw, `rpm = raw / 4` |
-| `0x1A0` | 8 | Speed 바늘용 주기 프레임 | `byte[2]~byte[3]` little-endian raw, `speed = raw / 160` |
+| `0x1A0` | 8 | Speed 바늘용 주기 프레임 | `byte[2]~byte[3]` little-endian raw, `speed = raw / 80` |
 | `0x5A0` | 8 | Speed 보조 프레임 | `byte[2]` speed 값 |
 | `0x288` | 8 | 냉각수 바늘 | `byte[1]` coolant 값 |
 

@@ -213,8 +213,8 @@ void SerialBridge::connectToPort(const QString &portName, int baudRate)
     emit connectionChanged();
 
     sendCommand("log on");
-    sendCommand("canlog all");
-    sendCommand("canlog on");
+    sendCommand("canlog rate 100");
+    sendCommand("canlog off");
 }
 
 void SerialBridge::disconnectPort()
@@ -297,14 +297,31 @@ void SerialBridge::setStatusText(const QString &text)
 
 void SerialBridge::processLine(const QString &line)
 {
-    if (line.startsWith("[GW]")) {
-        parseGatewayStatus(line);
-        emit gatewayLineReceived(nowString(), line);
+    const int gwIndex = line.indexOf("[GW]");
+    if (gwIndex >= 0) {
+        QString gatewayLine = line.mid(gwIndex);
+        const int nextGwIndex = gatewayLine.indexOf("[GW]", 4);
+        if (nextGwIndex > 0) {
+            gatewayLine = gatewayLine.left(nextGwIndex).trimmed();
+        }
+        parseGatewayStatus(gatewayLine);
+        emit gatewayLineReceived(nowString(), gatewayLine);
         return;
     }
 
-    if (line.startsWith("[RX") || line.startsWith("[TX")) {
-        parseFrameLine(line);
+    const int rxIndex = line.indexOf("[RX");
+    const int txIndex = line.indexOf("[TX");
+    int frameIndex = -1;
+    if (rxIndex >= 0 && txIndex >= 0) {
+        frameIndex = qMin(rxIndex, txIndex);
+    } else if (rxIndex >= 0) {
+        frameIndex = rxIndex;
+    } else if (txIndex >= 0) {
+        frameIndex = txIndex;
+    }
+
+    if (frameIndex >= 0) {
+        parseFrameLine(line.mid(frameIndex));
         return;
     }
 
@@ -362,6 +379,22 @@ void SerialBridge::parseGatewayStatus(const QString &line)
     m_adasRear = valueFor("rear", m_adasRear);
     m_adasSpeed = valueFor("speed", m_adasSpeed);
     m_adasAlive = valueFor("alive", m_adasAlive);
+
+    const int engineValid = valueFor("eng", -1);
+    if (engineValid >= 0) {
+        m_rpm = valueFor("rpm", m_rpm);
+        m_speed = valueFor("spd1", m_speed);
+        m_coolant = valueFor("coolant", m_coolant);
+        m_ignition = valueFor("ign", m_ignition ? 1 : 0) != 0;
+        m_lastEngineRx = nowString();
+    }
+
+    const int bodyValid = valueFor("body", -1);
+    if (bodyValid >= 0) {
+        m_turnLeft = valueFor("left", m_turnLeft ? 1 : 0) != 0;
+        m_turnRight = valueFor("right", m_turnRight ? 1 : 0) != 0;
+        m_lastBodyRx = nowString();
+    }
 
     m_warning = valueFor("warn", (m_adasRisk >= 2 || m_adasFault != 0) ? 1 : 0) != 0 ||
                 m_adasRisk >= 2 ||
@@ -508,7 +541,7 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
     if (id == "0x1A0") {
         QString decoded = "cluster speed frame";
         if (bytes.size() >= 4) {
-            const int clusterSpeed = ((bytes[2] | (bytes[3] << 8)) / 160);
+            const int clusterSpeed = ((bytes[2] | (bytes[3] << 8)) / 80);
             m_speed = clusterSpeed;
             m_lastEngineRx = nowString();
             decoded = QString("cluster_speed=%1 km/h").arg(clusterSpeed);
