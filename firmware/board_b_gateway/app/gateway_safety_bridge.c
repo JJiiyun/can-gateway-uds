@@ -8,10 +8,6 @@
 
 extern CAN_HandleTypeDef hcan2;
 
-#ifndef GATEWAY_SAFETY_WARNING_PERIOD_MS
-#define GATEWAY_SAFETY_WARNING_PERIOD_MS 100U
-#endif
-
 #ifndef GATEWAY_SAFETY_GONG_PULSE_MS
 #define GATEWAY_SAFETY_GONG_PULSE_MS 100U
 #endif
@@ -63,11 +59,9 @@ extern CAN_HandleTypeDef hcan2;
 #endif
 
 static GatewaySafetyDiagnostic_t s_diag;
-static uint32_t s_next_warning_tick;
 static uint32_t s_next_gong_tick;
 static uint32_t s_gong_clear_tick;
 static uint32_t s_next_parking_assist_sweep_tick;
-static uint8_t s_warning_alive;
 static uint8_t s_parking_assist_byte1_sweep;
 static bool s_gong_asserted;
 static bool s_parking_assist_was_active;
@@ -102,17 +96,6 @@ static bool safety_status_recent(uint32_t now)
     return tick_elapsed(now, s_diag.last_rx_tick) <= GATEWAY_SAFETY_TIMEOUT_MS;
 }
 
-static bool safety_warning_active(uint32_t now)
-{
-    if (!safety_status_recent(now)) {
-        return false;
-    }
-
-    return s_diag.risk_level >= 2U ||
-           (s_diag.flags & ADAS_FLAG_SENSOR_FAULT) != 0U ||
-           s_diag.active_fault_bitmap != 0U;
-}
-
 static bool seatbelt_gong_active(uint32_t now)
 {
     return safety_status_recent(now) && s_diag.risk_level >= 2U;
@@ -144,24 +127,6 @@ static uint32_t parking_assist_sweep_period_ms(void)
     return GATEWAY_SAFETY_PARKING_ASSIST_SWEEP_RISK2_PERIOD_MS;
 }
 
-static void build_motor5_warning(uint8_t data[8], uint32_t now)
-{
-    bool active = safety_warning_active(now);
-    bool high_risk = active && s_diag.risk_level >= 3U;
-    bool fault = active &&
-                 ((s_diag.flags & ADAS_FLAG_SENSOR_FAULT) != 0U ||
-                  s_diag.active_fault_bitmap != 0U);
-
-    memset(data, 0, GOLF6_MOTOR_5_DLC);
-
-    set_bit(data, GOLF6_MO5_HLEUCHTE_BIT, active ? 1U : 0U);
-    set_bit(data, GOLF6_MO5_HEISSL_BIT, high_risk ? 1U : 0U);
-    set_bit(data, GOLF6_MO5_TDE_LAMPE_BIT, fault ? 1U : 0U);
-    set_bit(data, GOLF6_MO5_MOTORTEXT3_BIT, fault ? 1U : 0U);
-
-    data[7] = s_warning_alive++;
-}
-
 static void build_parking_assist_gong(uint8_t data[8],
                                       bool gong_active,
                                       bool sweep_byte1)
@@ -173,16 +138,6 @@ static void build_parking_assist_gong(uint8_t data[8],
         /* Probe unknown Parking Assist byte[1] payload: 00..FF continuously. */
         data[1] = s_parking_assist_byte1_sweep++;
     }
-}
-
-static void send_warning(uint32_t now)
-{
-    uint8_t data[8];
-    HAL_StatusTypeDef status;
-
-    build_motor5_warning(data, now);
-    status = CAN_BSP_SendTo(&hcan2, CAN_ID_WARNING, data, GOLF6_MOTOR_5_DLC);
-    CanCliMonitor_LogTx(2U, CAN_ID_WARNING, data, GOLF6_MOTOR_5_DLC, status);
 }
 
 static void send_seatbelt_gong(bool gong_active, bool sweep_byte1)
@@ -277,11 +232,9 @@ static void forward_adas_status(const CAN_RxMessage_t *rx_msg)
 void GatewaySafetyBridge_Init(void)
 {
     memset(&s_diag, 0, sizeof(s_diag));
-    s_next_warning_tick = 0U;
     s_next_gong_tick = 0U;
     s_gong_clear_tick = 0U;
     s_next_parking_assist_sweep_tick = 0U;
-    s_warning_alive = 0U;
     s_parking_assist_byte1_sweep = 0U;
     s_gong_asserted = false;
     s_parking_assist_was_active = false;
@@ -319,11 +272,6 @@ void GatewaySafetyBridge_OnRx(const CAN_RxMessage_t *rx_msg)
 
     forward_adas_status(rx_msg);
 
-    if (safety_warning_active(s_diag.last_rx_tick)) {
-        send_warning(s_diag.last_rx_tick);
-        s_next_warning_tick = s_diag.last_rx_tick + GATEWAY_SAFETY_WARNING_PERIOD_MS;
-    }
-
     if (s_diag.risk_level >= 2U &&
         (previous_risk_level != s_diag.risk_level || s_next_gong_tick == 0U)) {
         s_next_gong_tick = s_diag.last_rx_tick;
@@ -333,17 +281,6 @@ void GatewaySafetyBridge_OnRx(const CAN_RxMessage_t *rx_msg)
 void GatewaySafetyBridge_Task10ms(void)
 {
     uint32_t now = osKernelGetTickCount();
-
-    if (s_next_warning_tick == 0U) {
-        s_next_warning_tick = now;
-    }
-
-    if (tick_reached(now, s_next_warning_tick)) {
-        if (safety_status_recent(now)) {
-            send_warning(now);
-        }
-        s_next_warning_tick = now + GATEWAY_SAFETY_WARNING_PERIOD_MS;
-    }
 
     update_seatbelt_gong(now);
     update_parking_assist_sweep(now);
