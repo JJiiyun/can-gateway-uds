@@ -63,9 +63,12 @@
  * 0x5A0 Speed Frame
  *
  * byte2 : Speed needle value
+ * byte4 : bit4~5 = warning chime request
  * ============================================================ */
 
 #define CAN_SPEED_5A0_VALUE_IDX         2U
+#define CAN_SPEED_5A0_WARNING_CHIME_IDX 4U
+#define CAN_SPEED_5A0_WARNING_CHIME_MASK 0x30U
 
 /* ============================================================
  * 0x288 Coolant Frame

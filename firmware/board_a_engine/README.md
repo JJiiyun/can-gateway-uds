@@ -104,6 +104,19 @@ EngineSim 입력 모드는 두 가지입니다.
 | DLC | `8` |
 | 주기 | `50 ms` |
 | Byte 2 | Speed 값 |
+| Byte 4 bit 5 | Warning 표시 비트 |
+
+`0x5A0`의 `byte[4]`는 경고 표시용 비트를 포함합니다.
+EngineSim에서 warning 조건이 발생하면 `byte[4]`의 bit 5를 `1`로 설정합니다.
+즉, mask 값은 `0x20`입니다.
+
+```c
+if (warning_active) {
+    data[4] |= 0x20U;   // byte[4] bit5 = 1
+} else {
+    data[4] &= ~0x20U;  // byte[4] bit5 = 0
+}
+```
 
 ### `0x288` Coolant
 
@@ -174,9 +187,13 @@ Payload:
 
 Gateway에서는 0x481을 CAN1에서 수신해 CAN2로 포워딩하거나,
 계기판용 warning 프레임이 따로 있으면 0x481을 입력으로 받아 해당 프레임으로 변환해 주세요.
+
+추가로 Board A는 경고 상황에서 0x5A0의 byte[4] bit5를 1로 설정합니다.
+0x5A0은 계기판 반응용 프레임이므로 Gateway에서 변조하지 말고 그대로 포워딩하면 됩니다.
 ```
 
 `0x1A0`에는 speed raw를 싣지 않습니다. Speed 보조 표시는 `0x5A0`의 `byte[2]`를 사용합니다.
+경고 표시는 `0x5A0`의 `byte[4] bit5`를 사용하며, 해당 bit의 mask 값은 `0x20`입니다.
 
 ## CLI 명령
 

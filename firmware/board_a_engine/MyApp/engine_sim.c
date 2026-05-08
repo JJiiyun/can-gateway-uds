@@ -13,6 +13,7 @@
 
 #define ENG_PERIOD_MODEL_MS             50U
 #define ENG_PERIOD_COOLANT_MODEL_MS     1000U
+#define ENG_WARNING_CHIME_DURATION_MS   1000U
 
  /* ============================================================
   * Engine Model Config
@@ -70,6 +71,9 @@ static uint16_t throttle_adc_filtered = 0;
 static uint16_t brake_adc_filtered = 0;
 static uint8_t warning_alive = 0;
 static uint8_t speed_1a0_alive = 0;
+static uint8_t warning_prev_active = 0;
+static uint8_t warning_chime_active = 0;
+static uint32_t warning_chime_start_tick = 0;
 
 /* ============================================================
  * Live Debug Variables
@@ -105,6 +109,7 @@ static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed);
 static uint8_t EngineSim_MapCoolantToClusterValue(uint8_t coolant);
 static uint8_t EngineSim_EncodeCoolantRaw(uint8_t coolant);
 static uint8_t EngineSim_GetWarningFlags(void);
+static void EngineSim_UpdateWarningChime(uint32_t now);
 
 static void EngineSim_SendClusterRpm(void);
 static void EngineSim_SendIgnOnStatus(void);
@@ -134,6 +139,9 @@ void EngineSim_Init(void)
     brake_adc_filtered = 0;
     warning_alive = 0;
     speed_1a0_alive = 0;
+    warning_prev_active = 0;
+    warning_chime_active = 0;
+    warning_chime_start_tick = 0;
 
     EngineSim_UpdateLiveDebug();
 }
@@ -153,6 +161,9 @@ void EngineSim_Reset(void)
     brake_adc_filtered = 0;
     warning_alive = 0;
     speed_1a0_alive = 0;
+    warning_prev_active = 0;
+    warning_chime_active = 0;
+    warning_chime_start_tick = 0;
 
     EngineSim_UpdateLiveDebug();
 }
@@ -494,6 +505,25 @@ static uint8_t EngineSim_GetWarningFlags(void)
     return flags;
 }
 
+static void EngineSim_UpdateWarningChime(uint32_t now)
+{
+    uint8_t warning_active = (EngineSim_GetWarningFlags() != 0U) ? 1U : 0U;
+
+    if ((warning_active != 0U) && (warning_prev_active == 0U))
+    {
+        warning_chime_active = 1U;
+        warning_chime_start_tick = now;
+    }
+
+    warning_prev_active = warning_active;
+
+    if ((warning_chime_active != 0U) &&
+        ((now - warning_chime_start_tick) >= ENG_WARNING_CHIME_DURATION_MS))
+    {
+        warning_chime_active = 0U;
+    }
+}
+
 /* ============================================================
  * CAN TX Functions
  * ============================================================ */
@@ -559,6 +589,10 @@ static void EngineSim_SendClusterSpeed5A0(void)
     };
 
     data[CAN_SPEED_5A0_VALUE_IDX] = EngineSim_EncodeSpeed5A0Value(engine.speed);
+    if (warning_chime_active != 0U)
+    {
+        data[CAN_SPEED_5A0_WARNING_CHIME_IDX] |= CAN_SPEED_5A0_WARNING_CHIME_MASK;
+    }
 
     HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_SPEED_5A0,
         data,
@@ -647,6 +681,8 @@ void EngineSim_Task(void* argument)
             EngineSim_UpdateCoolant();
             t_coolant_model = now;
         }
+
+        EngineSim_UpdateWarningChime(now);
 
         if ((now - t_rpm_tx) >= ENG_PERIOD_RPM_TX_MS)
         {
