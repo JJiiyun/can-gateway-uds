@@ -514,11 +514,11 @@ void MainWindow::setupUi()
     rpmBar_->setProperty("metric", "rpm");
     rpmBar_->setMinimumHeight(66);
 
-    speedBar_ = makeProgressBar(130, QStringLiteral("%v km/h"));
+    speedBar_ = makeProgressBar(240, QStringLiteral("%v km/h"));
     speedBar_->setProperty("metric", "speed");
     speedBar_->setMinimumHeight(52);
 
-    coolantBar_ = makeProgressBar(120, QStringLiteral("%v C"));
+    coolantBar_ = makeProgressBar(130, QStringLiteral("%v C"));
     coolantBar_->setProperty("metric", "coolant");
     coolantBar_->setMinimumHeight(42);
 

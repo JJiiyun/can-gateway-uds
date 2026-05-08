@@ -229,8 +229,8 @@ void MainWindow::setupUi()
     throttleBar_ = makeProgressBar(100, QStringLiteral("%v / %m"));
     brakeBar_ = makeProgressBar(100, QStringLiteral("%v / %m"));
     rpmBar_ = makeProgressBar(6000, QStringLiteral("%v rpm"));
-    speedBar_ = makeProgressBar(130, QStringLiteral("%v km/h"));
-    coolantBar_ = makeProgressBar(120, QStringLiteral("%v C"));
+    speedBar_ = makeProgressBar(240, QStringLiteral("%v km/h"));
+    coolantBar_ = makeProgressBar(130, QStringLiteral("%v C"));
 
     statusLayout->addWidget(new QLabel(QStringLiteral("Connection"), statusGroup), 0, 0);
     statusLayout->addWidget(connectionValueLabel_, 0, 1);

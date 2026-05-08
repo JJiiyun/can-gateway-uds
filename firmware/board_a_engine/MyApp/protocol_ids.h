@@ -49,13 +49,13 @@
  * Example:
  * ID   : 0x1A0
  * DLC  : 8
- * DATA : 08 00 20 4E 00 00 00 00
+ * DATA : 00 00 00 00 00 00 00 00
  *
- * byte2~3 : Speed raw value
- * byte0   : fixed value 0x08
+ * EngineSim sends this frame as a zero-filled keepalive.
+ * Speed raw is not carried in this frame.
  * ============================================================ */
 
-#define CAN_SPEED_1A0_FIXED_B0          0x08U
+#define CAN_SPEED_1A0_FIXED_B0          0x00U
 #define CAN_SPEED_1A0_RAW_L_IDX         2U
 #define CAN_SPEED_1A0_RAW_H_IDX         3U
 
@@ -70,7 +70,8 @@
 /* ============================================================
  * 0x288 Coolant Frame
  *
- * byte1 : Coolant needle value
+ * byte1 : Coolant raw value
+ *         coolant = (raw * 0.75) - 48
  * ============================================================ */
 
 #define CAN_COOLANT_VALUE_IDX           1U
