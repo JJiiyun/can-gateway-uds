@@ -34,13 +34,14 @@ CAN1 - Powertrain / Body / Safety bus, 500 kbps
   Board B Central Gateway
     RX CAN1 frames
     Route selected frames to CAN2
-    Convert ADAS risk/fault to 0x480 warning
+    Convert ADAS risk/fault to 0x480 warning and 0x5D6 audible pulse
 
 CAN2 - Cluster / Diagnostic bus, 500 kbps
 
   Volkswagen Golf 6 Cluster
     RX routed cluster frames
     RX 0x480 warning frame
+    RX 0x5D6 audible warning pulse
 
   Board C UDS Diagnostic
     UDS request / response with Board B
@@ -74,6 +75,7 @@ flowchart LR
     E -->|0x3A0 ADAS_Status| B
     B -->|Routed cluster frames| K
     B -->|0x480 warning| K
+    B -->|0x5D6 audible pulse| K
     C <-->|UDS| B
 ```
 
@@ -112,8 +114,9 @@ flowchart LR
 | `0x288` | 8 | Board B | Cluster | Routed coolant |
 | `0x531` | 8 | Board B | Cluster | Routed turn signal status |
 | `0x480` | 8 | Board B | Cluster | Golf 6 `mMotor_5` warning overlay from ADAS risk/fault |
+| `0x5D6` | 8 | Board B | Cluster | Parking Assist audible warning pulse while ADAS risk >= 2 |
 
-Board B does not forward Board E's raw `0x3A0` to CAN2 by default, because Golf 6 K-Matrix also uses `0x3A0` for another brake-related message. Instead, Board B converts ADAS warning/fault state to `0x480`.
+Board B does not forward Board E's raw `0x3A0` to CAN2 by default, because Golf 6 K-Matrix also uses `0x3A0` for another brake-related message. Instead, Board B converts ADAS warning/fault state to `0x480` (warning lights) and `0x5D6` (audible warning) when risk is 2 or higher.
 
 ## Payload Layouts
 
@@ -169,7 +172,7 @@ Board B does not forward Board E's raw `0x3A0` to CAN2 by default, because Golf 
 4. Power Board E and verify it receives CAN1 `0x100` plus `0x1A0` or `0x5A0`.
 5. Verify Board E sends CAN1 `0x3A0` every 100 ms.
 6. Power Board B and verify CAN2 sees routed `0x280`, `0x1A0`, `0x5A0`, `0x288`, and `0x531`.
-7. Trigger Board E warning conditions and verify Board B sends CAN2 `0x480`.
+7. Trigger Board E warning conditions and verify Board B sends CAN2 `0x480` plus pulsed `0x050` when risk is 2 or higher.
 
 ## Directory Layout
 

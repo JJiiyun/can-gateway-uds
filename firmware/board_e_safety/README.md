@@ -105,7 +105,16 @@ Input bitmap:
 | `rear <= 25 cm` | rear obstacle, risk 1 |
 | HC-SR04 timeout | sensor fault, fault bitmap, risk 2 |
 
-Board B converts `risk_level >= 2`, sensor fault, or active fault bitmap into a CAN2 `0x480 mMotor_5` warning frame. Board B does not forward the raw `0x3A0` to CAN2 by default.
+Board B converts `risk_level >= 2`, sensor fault, or active fault bitmap into a CAN2 `0x480 mMotor_5` warning frame. For audible cluster feedback, Board B also pulses CAN2 `0x050 mAirbag_1` with `byte[2] = 0x04` while `risk_level >= 2`.
+
+Audible warning cadence:
+
+| Risk level | CAN2 `0x050` pulse |
+|---:|---|
+| 0 | off |
+| 1 | off |
+| 2 | `byte[2] = 0x04` for 100 ms every 600 ms |
+| 3 | `byte[2] = 0x04` for 100 ms every 300 ms |
 
 ## Physical Inputs
 
