@@ -26,7 +26,7 @@ void StartDefaultTask(void *argument)
     {
         // CLI 입력 처리 (블로킹 되지 않도록 설계되어야 함)
         //시뮬레이션 사용 시 cilMain() 주석 처리
-        //cliMain();
+        cliMain();
         CliCmd_Process();
 
         // 다른 Task(EngSimTask 등)에게 CPU 점유율을 양보

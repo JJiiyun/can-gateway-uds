@@ -27,9 +27,15 @@
    * Coolant Model Config
    * ============================================================ */
 
-#define ENGINE_COOLANT_INIT             70U
-#define ENGINE_COOLANT_MAX              115U
-#define ENGINE_COOLANT_WARN_THRESHOLD   105U
+#define ENGINE_COOLANT_MIN              60U
+#define ENGINE_COOLANT_INIT             60U
+#define ENGINE_COOLANT_MAX              130U
+#define ENGINE_COOLANT_WARN_THRESHOLD   115U
+#define ENGINE_COOLANT_CAN_MIN          60U
+#define ENGINE_COOLANT_CAN_MAX          130U
+
+#define ENGINE_COOLANT_RPM_MIN          800U
+#define ENGINE_COOLANT_RPM_MAX          6000U
 
    /* ============================================================
     * ADC / Pedal Config
@@ -63,6 +69,7 @@ static uint8_t adc_filter_init = 0;
 static uint16_t throttle_adc_filtered = 0;
 static uint16_t brake_adc_filtered = 0;
 static uint8_t warning_alive = 0;
+static uint8_t speed_1a0_alive = 0;
 
 /* ============================================================
  * Live Debug Variables
@@ -94,8 +101,9 @@ static void EngineSim_UpdateCoolant(void);
 static void EngineSim_PutU16LE(uint8_t* data, uint8_t idx, uint16_t value);
 
 static uint16_t EngineSim_EncodeRpmRaw(uint16_t rpm);
-static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed);
 static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed);
+static uint8_t EngineSim_MapCoolantToClusterValue(uint8_t coolant);
+static uint8_t EngineSim_EncodeCoolantRaw(uint8_t coolant);
 static uint8_t EngineSim_GetWarningFlags(void);
 
 static void EngineSim_SendClusterRpm(void);
@@ -104,6 +112,8 @@ static void EngineSim_SendClusterSpeed1A0(void);
 static void EngineSim_SendClusterSpeed5A0(void);
 static void EngineSim_SendClusterCoolant(void);
 static void EngineSim_SendWarningStatus(void);
+
+
 
 /* ============================================================
  * Public Functions
@@ -123,6 +133,7 @@ void EngineSim_Init(void)
     throttle_adc_filtered = 0;
     brake_adc_filtered = 0;
     warning_alive = 0;
+    speed_1a0_alive = 0;
 
     EngineSim_UpdateLiveDebug();
 }
@@ -141,6 +152,7 @@ void EngineSim_Reset(void)
     throttle_adc_filtered = 0;
     brake_adc_filtered = 0;
     warning_alive = 0;
+    speed_1a0_alive = 0;
 
     EngineSim_UpdateLiveDebug();
 }
@@ -347,33 +359,26 @@ static void EngineSim_UpdatePhysics(void)
 
 static void EngineSim_UpdateCoolant(void)
 {
-    uint8_t target_coolant;
+    uint32_t rpm;
+    uint32_t target_coolant;
 
-    if (engine.rpm < 1500U)
+    rpm = engine.rpm;
+
+    if (rpm <= ENGINE_COOLANT_RPM_MIN)
     {
-        target_coolant = 85U;
+        target_coolant = ENGINE_COOLANT_MIN;
     }
-    else if (engine.rpm < 3500U)
+    else if (rpm >= ENGINE_COOLANT_RPM_MAX)
     {
-        target_coolant = 90U;
-    }
-    else if (engine.rpm < 5000U)
-    {
-        target_coolant = 98U;
+        target_coolant = ENGINE_COOLANT_MAX;
     }
     else
     {
-        target_coolant = 105U;
-    }
-
-    if (engine.throttle > 80U)
-    {
-        target_coolant += 5U;
-    }
-
-    if (target_coolant > ENGINE_COOLANT_MAX)
-    {
-        target_coolant = ENGINE_COOLANT_MAX;
+        target_coolant =
+            ENGINE_COOLANT_MIN +
+            (((rpm - ENGINE_COOLANT_RPM_MIN) *
+              (ENGINE_COOLANT_MAX - ENGINE_COOLANT_MIN)) /
+             (ENGINE_COOLANT_RPM_MAX - ENGINE_COOLANT_RPM_MIN));
     }
 
     if (engine.coolant < target_coolant)
@@ -385,6 +390,7 @@ static void EngineSim_UpdateCoolant(void)
         engine.coolant--;
     }
 }
+
 
 /* ============================================================
  * CAN Encoding Helpers
@@ -409,21 +415,6 @@ static uint16_t EngineSim_EncodeRpmRaw(uint16_t rpm)
     return (uint16_t)(rpm * 4U);
 }
 
-static uint16_t EngineSim_EncodeSpeed1A0Raw(uint16_t speed)
-{
-    /*
-     * 0x1A0
-     * 예시 프레임:
-     * 08 00 20 4E 00 00 00 00
-     *
-     * 현재 계기판은 speed * 160으로 보내면 실제 표시가 2배로 나타남.
-     * 예: 시뮬레이션 20km/h -> 계기판 40km/h
-     *
-     * 따라서 이 계기판 기준으로 raw = speed * 80으로 둠.
-     */
-    return (uint16_t)(speed * 80U);
-}
-
 static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed)
 {
     /*
@@ -436,6 +427,34 @@ static uint8_t EngineSim_EncodeSpeed5A0Value(uint16_t speed)
     speed /= 2U;
 
     return (uint8_t)speed;
+}
+
+static uint8_t EngineSim_MapCoolantToClusterValue(uint8_t coolant)
+{
+    if (coolant <= ENGINE_COOLANT_CAN_MIN)
+    {
+        return ENGINE_COOLANT_CAN_MIN;
+    }
+
+    if (coolant >= ENGINE_COOLANT_CAN_MAX)
+    {
+        return ENGINE_COOLANT_CAN_MAX;
+    }
+
+    return coolant;
+}
+
+static uint8_t EngineSim_EncodeCoolantRaw(uint8_t coolant)
+{
+    uint8_t cluster_coolant = EngineSim_MapCoolantToClusterValue(coolant);
+    uint32_t raw = (((uint32_t)cluster_coolant + 48U) * 4U) / 3U;
+
+    if (raw > 0xFFU)
+    {
+        raw = 0xFFU;
+    }
+
+    return (uint8_t)raw;
 }
 
 static uint8_t EngineSim_GetWarningFlags(void)
@@ -505,14 +524,8 @@ static void EngineSim_SendIgnOnStatus(void)
 static void EngineSim_SendClusterSpeed1A0(void)
 {
     uint8_t data[CAN_CLUSTER_DLC] = {
-        0x08, 0x00, 0x20, 0x4E, 0x00, 0x00, 0x00, 0x00
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
-
-    uint16_t speed_raw = EngineSim_EncodeSpeed1A0Raw(engine.speed);
-
-    data[0] = CAN_SPEED_1A0_FIXED_B0;
-
-    EngineSim_PutU16LE(data, CAN_SPEED_1A0_RAW_L_IDX, speed_raw);
 
     HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_SPEED_1A0,
         data,
@@ -548,7 +561,7 @@ static void EngineSim_SendClusterCoolant(void)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     };
 
-    data[CAN_COOLANT_VALUE_IDX] = engine.coolant;
+    data[CAN_COOLANT_VALUE_IDX] = EngineSim_EncodeCoolantRaw(engine.coolant);
 
     HAL_StatusTypeDef ret = CAN_BSP_Send(CAN_ID_CLUSTER_COOLANT,
         data,

@@ -87,14 +87,13 @@ EngineSim 입력 모드는 두 가지입니다.
 | CAN ID | `0x1A0` |
 | DLC | `8` |
 | 주기 | `50 ms` |
-| Byte 0 | fixed `0x08` |
-| Byte 2-3 | Speed raw, little-endian |
-| 해석 | `speed = raw / 160` |
+| Payload | `00 00 00 00 00 00 00 00` |
+| 해석 | Speed raw 없음 |
 
 예시:
 
 ```text
-0x1A0 8 08 00 20 4E 00 00 00 00
+0x1A0 8 00 00 00 00 00 00 00 00
 ```
 
 ### `0x5A0` Speed 보조
@@ -113,9 +112,18 @@ EngineSim 입력 모드는 두 가지입니다.
 | CAN ID | `0x288` |
 | DLC | `8` |
 | 주기 | `100 ms` |
-| Byte 1 | Coolant 바늘 값 |
+| Byte 1 | Coolant raw 값 |
 
-`0x288` payload의 `byte[1]`에는 EngineSim coolant 모델에서 계산한 현재 `engine.coolant` 값이 들어갑니다.
+`0x288` payload의 `byte[1]`에는 EngineSim coolant 모델 값을 DBC raw로 인코딩해서 넣습니다.
+현재 모델 coolant와 계기판 송신용 coolant는 모두 `60~130` 범위를 사용합니다.
+
+```text
+cluster_coolant = clamp(model_coolant, 60, 130)
+raw = ((cluster_coolant + 48) * 4) / 3
+cluster_coolant = (raw * 0.75) - 48
+```
+
+예를 들어 모델 coolant가 `90`이면 CAN raw는 `184`, 즉 `0xB8`입니다.
 
 ### `0x481` Engine Warning Status
 
@@ -134,7 +142,7 @@ Warning bitfield:
 | Bit | 의미 | 조건 |
 | --- | --- | --- |
 | 0 | RPM warning | `rpm >= 5000` |
-| 1 | Coolant warning | `coolant >= 105` |
+| 1 | Coolant warning | `coolant >= 115` |
 | 2 | General warning | bit0 또는 bit1 ON |
 | 3-7 | Reserved | `0` |
 
@@ -159,7 +167,7 @@ DLC: 8
 Period: 100 ms
 Payload:
   byte0 bit0 = RPM warning       (rpm >= 5000)
-  byte0 bit1 = Coolant warning   (coolant >= 105)
+  byte0 bit1 = Coolant warning   (coolant >= 115)
   byte0 bit2 = General warning   (bit0 또는 bit1 ON)
   byte1      = coolant value
   byte2~3    = rpm value, little-endian
@@ -169,7 +177,7 @@ Gateway에서는 0x481을 CAN1에서 수신해 CAN2로 포워딩하거나,
 계기판용 warning 프레임이 따로 있으면 0x481을 입력으로 받아 해당 프레임으로 변환해 주세요.
 ```
 
-Speed 로그가 필요하면 `0x1A0`의 `byte[2..3]`를 읽고 `speed = raw / 80`으로 해석합니다.
+`0x1A0`에는 speed raw를 싣지 않습니다. Speed 보조 표시는 `0x5A0`의 `byte[2]`를 사용합니다.
 
 ## CLI 명령
 
