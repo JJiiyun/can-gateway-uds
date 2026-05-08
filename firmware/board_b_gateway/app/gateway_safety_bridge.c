@@ -12,6 +12,18 @@ extern CAN_HandleTypeDef hcan2;
 #define GATEWAY_SAFETY_WARNING_PERIOD_MS 100U
 #endif
 
+#ifndef GATEWAY_SAFETY_GONG_PULSE_MS
+#define GATEWAY_SAFETY_GONG_PULSE_MS 100U
+#endif
+
+#ifndef GATEWAY_SAFETY_GONG_RISK2_PERIOD_MS
+#define GATEWAY_SAFETY_GONG_RISK2_PERIOD_MS 600U
+#endif
+
+#ifndef GATEWAY_SAFETY_GONG_RISK3_PERIOD_MS
+#define GATEWAY_SAFETY_GONG_RISK3_PERIOD_MS 300U
+#endif
+
 #ifndef GATEWAY_SAFETY_TIMEOUT_MS
 #define GATEWAY_SAFETY_TIMEOUT_MS 500U
 #endif
@@ -27,11 +39,19 @@ extern CAN_HandleTypeDef hcan2;
 
 static GatewaySafetyDiagnostic_t s_diag;
 static uint32_t s_next_warning_tick;
+static uint32_t s_next_gong_tick;
+static uint32_t s_gong_clear_tick;
 static uint8_t s_warning_alive;
+static bool s_gong_asserted;
 
 static uint32_t tick_elapsed(uint32_t now, uint32_t before)
 {
     return now - before;
+}
+
+static bool tick_reached(uint32_t now, uint32_t target)
+{
+    return tick_elapsed(now, target) < 0x80000000UL;
 }
 
 static void set_bit(uint8_t data[8], uint8_t bit, uint8_t on)
@@ -65,6 +85,18 @@ static bool safety_warning_active(uint32_t now)
            s_diag.active_fault_bitmap != 0U;
 }
 
+static bool seatbelt_gong_active(uint32_t now)
+{
+    return safety_status_recent(now) && s_diag.risk_level >= 2U;
+}
+
+static uint32_t seatbelt_gong_period_ms(void)
+{
+    return s_diag.risk_level >= 3U ?
+           GATEWAY_SAFETY_GONG_RISK3_PERIOD_MS :
+           GATEWAY_SAFETY_GONG_RISK2_PERIOD_MS;
+}
+
 static void build_motor5_warning(uint8_t data[8], uint32_t now)
 {
     bool active = safety_warning_active(now);
@@ -83,6 +115,12 @@ static void build_motor5_warning(uint8_t data[8], uint32_t now)
     data[7] = s_warning_alive++;
 }
 
+static void build_parking_assist_gong(uint8_t data[8], bool active)
+{
+    memset(data, 0, PARKING_ASSIST_DLC);
+    set_bit(data, PARKING_ASSIST_GONG_BIT, active ? 1U : 0U);
+}
+
 static void send_warning(uint32_t now)
 {
     uint8_t data[8];
@@ -91,6 +129,51 @@ static void send_warning(uint32_t now)
     build_motor5_warning(data, now);
     status = CAN_BSP_SendTo(&hcan2, CAN_ID_WARNING, data, GOLF6_MOTOR_5_DLC);
     CanCliMonitor_LogTx(2U, CAN_ID_WARNING, data, GOLF6_MOTOR_5_DLC, status);
+}
+
+static void send_seatbelt_gong(bool active)
+{
+    uint8_t data[8];
+    HAL_StatusTypeDef status;
+
+    build_parking_assist_gong(data, active);
+    status = CAN_BSP_SendTo(&hcan2, CAN_ID_PARKING_ASSIST, data, PARKING_ASSIST_DLC);
+    CanCliMonitor_LogTx(2U, CAN_ID_PARKING_ASSIST, data, PARKING_ASSIST_DLC, status);
+}
+
+static void update_seatbelt_gong(uint32_t now)
+{
+    if (!seatbelt_gong_active(now)) {
+        if (s_gong_asserted) {
+            send_seatbelt_gong(false);
+            s_gong_asserted = false;
+        }
+
+        s_next_gong_tick = 0U;
+        s_gong_clear_tick = 0U;
+        s_diag.gong_flags = 0U;
+        return;
+    }
+
+    s_diag.gong_flags = s_diag.risk_level >= 3U ?
+                        ADAS_GONG_DANGER :
+                        ADAS_GONG_WARNING;
+
+    if (s_next_gong_tick == 0U) {
+        s_next_gong_tick = now;
+    }
+
+    if (s_gong_asserted && tick_reached(now, s_gong_clear_tick)) {
+        send_seatbelt_gong(false);
+        s_gong_asserted = false;
+    }
+
+    if (!s_gong_asserted && tick_reached(now, s_next_gong_tick)) {
+        send_seatbelt_gong(true);
+        s_gong_asserted = true;
+        s_gong_clear_tick = now + GATEWAY_SAFETY_GONG_PULSE_MS;
+        s_next_gong_tick = now + seatbelt_gong_period_ms();
+    }
 }
 
 static void forward_adas_status(const CAN_RxMessage_t *rx_msg)
@@ -108,11 +191,16 @@ void GatewaySafetyBridge_Init(void)
 {
     memset(&s_diag, 0, sizeof(s_diag));
     s_next_warning_tick = 0U;
+    s_next_gong_tick = 0U;
+    s_gong_clear_tick = 0U;
     s_warning_alive = 0U;
+    s_gong_asserted = false;
 }
 
 void GatewaySafetyBridge_OnRx(const CAN_RxMessage_t *rx_msg)
 {
+    uint8_t previous_risk_level = s_diag.risk_level;
+
     if (rx_msg == NULL ||
         rx_msg->bus != 1U ||
         rx_msg->id != CAN_ID_ADAS_STATUS ||
@@ -145,6 +233,11 @@ void GatewaySafetyBridge_OnRx(const CAN_RxMessage_t *rx_msg)
         send_warning(s_diag.last_rx_tick);
         s_next_warning_tick = s_diag.last_rx_tick + GATEWAY_SAFETY_WARNING_PERIOD_MS;
     }
+
+    if (s_diag.risk_level >= 2U &&
+        (previous_risk_level != s_diag.risk_level || s_next_gong_tick == 0U)) {
+        s_next_gong_tick = s_diag.last_rx_tick;
+    }
 }
 
 void GatewaySafetyBridge_Task10ms(void)
@@ -155,12 +248,14 @@ void GatewaySafetyBridge_Task10ms(void)
         s_next_warning_tick = now;
     }
 
-    if (tick_elapsed(now, s_next_warning_tick) < 0x80000000UL) {
+    if (tick_reached(now, s_next_warning_tick)) {
         if (safety_status_recent(now)) {
             send_warning(now);
         }
         s_next_warning_tick = now + GATEWAY_SAFETY_WARNING_PERIOD_MS;
     }
+
+    update_seatbelt_gong(now);
 }
 
 void GatewaySafetyBridge_GetDiagnostic(GatewaySafetyDiagnostic_t *out_diag)

@@ -22,6 +22,22 @@ extern "C" {
 #define CAN_CLUSTER_FRAME_DLC         8U
 #endif
 
+#ifndef CAN_ID_CLUSTER_BRIGHTNESS
+#define CAN_ID_CLUSTER_BRIGHTNESS     0x635U
+#endif
+
+#ifndef CAN_CLUSTER_BRIGHTNESS_DLC
+#define CAN_CLUSTER_BRIGHTNESS_DLC    8U
+#endif
+
+#ifndef CAN_CLUSTER_BRIGHTNESS_LEVEL_IDX
+#define CAN_CLUSTER_BRIGHTNESS_LEVEL_IDX 0U
+#endif
+
+#ifndef CAN_CLUSTER_BRIGHTNESS_MAX
+#define CAN_CLUSTER_BRIGHTNESS_MAX    0x64U
+#endif
+
 #ifndef CAN_CLUSTER_531_TURN_IDX
 #define CAN_CLUSTER_531_TURN_IDX      2U
 #endif
@@ -46,6 +62,8 @@ typedef struct {
 
 void BCM_Signal_BuildTurnFrame(const BcmSignal_TurnStatus_t *status,
                                CAN_Msg_t *out_msg);
+void BCM_Signal_BuildBrightnessFrame(uint8_t level_percent,
+                                     CAN_Msg_t *out_msg);
 
 #ifdef __cplusplus
 }

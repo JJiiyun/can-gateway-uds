@@ -29,6 +29,10 @@
 #define PERIOD_BODY_STATUS_MS 100U
 #endif
 
+#ifndef PERIOD_BRIGHTNESS_FADE_MS
+#define PERIOD_BRIGHTNESS_FADE_MS 20U
+#endif
+
 #ifndef PERIOD_INPUT_DIAG_LOG_MS
 #define PERIOD_INPUT_DIAG_LOG_MS 250U
 #endif
@@ -47,6 +51,10 @@ static BcmInput_State_t s_last_logged_input;
 static BcmInput_State_t s_last_logged_raw;
 static uint32_t s_last_input_diag_tick;
 static volatile int8_t s_ign_override = -1;
+static uint8_t s_last_ign_on;
+static uint8_t s_brightness_fade_active;
+static uint8_t s_brightness_fade_level;
+static uint32_t s_last_brightness_fade_tick;
 
 static const osThreadAttr_t s_input_task_attributes = {
     .name = "bcmInput",
@@ -104,6 +112,48 @@ static void log_input_if_changed(const BcmInput_State_t *input)
         s_last_logged_input = *input;
         s_input_log_valid = 1U;
         s_last_input_diag_tick = now;
+    }
+}
+
+static void start_brightness_fade(uint32_t now)
+{
+    s_brightness_fade_active = 1U;
+    s_brightness_fade_level = 0U;
+    s_last_brightness_fade_tick = now - PERIOD_BRIGHTNESS_FADE_MS;
+    uartPrintf(0, "[BCM] Cluster brightness fade start id=0x%03X\r\n",
+               (unsigned int)CAN_ID_CLUSTER_BRIGHTNESS);
+}
+
+static void update_brightness_fade(uint8_t ign_on, uint32_t now)
+{
+    CAN_Msg_t msg;
+
+    if (ign_on && !s_last_ign_on) {
+        start_brightness_fade(now);
+    } else if (!ign_on) {
+        s_brightness_fade_active = 0U;
+        s_brightness_fade_level = 0U;
+    }
+
+    s_last_ign_on = ign_on;
+
+    if (!s_brightness_fade_active ||
+        (uint32_t)(now - s_last_brightness_fade_tick) < PERIOD_BRIGHTNESS_FADE_MS) {
+        return;
+    }
+
+    BCM_Signal_BuildBrightnessFrame(s_brightness_fade_level, &msg);
+    if (BCM_Can_SendBrightness(&msg) != 0) {
+        return;
+    }
+
+    s_last_brightness_fade_tick = now;
+    if (s_brightness_fade_level >= CAN_CLUSTER_BRIGHTNESS_MAX) {
+        s_brightness_fade_active = 0U;
+        uartPrintf(0, "[BCM] Cluster brightness fade done level=%u\r\n",
+                   (unsigned int)s_brightness_fade_level);
+    } else {
+        s_brightness_fade_level++;
     }
 }
 
@@ -166,9 +216,13 @@ void BCM_Body_Task(void *argument)
 
     for (;;) {
         uint32_t now = HAL_GetTick();
+        uint8_t ign_on;
 
         cliMain();
         BCM_Cli_Process();
+
+        ign_on = should_transmit();
+        update_brightness_fade(ign_on, now);
 
         if ((now - last_status_tick) >= PERIOD_BODY_STATUS_MS) {
             BcmSignal_TurnStatus_t status;
@@ -183,7 +237,7 @@ void BCM_Body_Task(void *argument)
             status.right_blink_on = blink_on;
             BCM_Signal_BuildTurnFrame(&status, &msg);
 
-            if (should_transmit()) {
+            if (ign_on) {
                 (void)BCM_Can_SendTurnStatus(&msg);
             }
         }

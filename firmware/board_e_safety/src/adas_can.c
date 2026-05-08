@@ -35,6 +35,10 @@ extern CAN_HandleTypeDef hcan1;
 #define CAN_CLUSTER_SPEED_5A0_VALUE_IDX 2U
 #endif
 
+#ifndef CAN_CLUSTER_SPEED_5A0_SCALE_MUL
+#define CAN_CLUSTER_SPEED_5A0_SCALE_MUL 2U
+#endif
+
 static volatile AdasCanStats_t s_stats;
 static volatile uint32_t s_last_speed_rx_tick;
 static volatile uint32_t s_last_ign_rx_tick;
@@ -45,16 +49,29 @@ static uint8_t ign_status_frame_is_on(const CAN_RxMessage_t *rx)
     return VW300_GET_IGN_ON(rx->data) ? 1U : 0U;
 }
 
-static uint16_t decode_cluster_speed_1a0(const CAN_RxMessage_t *rx)
+static uint8_t decode_cluster_speed_1a0(const CAN_RxMessage_t *rx,
+                                        uint16_t *speed_kmh)
 {
     uint16_t raw = CAN_GetU16LE(rx->data, CAN_CLUSTER_SPEED_1A0_RAW_IDX);
 
-    return (uint16_t)(raw / CAN_CLUSTER_SPEED_1A0_SCALE_DIV);
+    /*
+     * Current Board A sends 0x1A0 as a zero-filled cluster keepalive and
+     * carries the ADAS speed reference in 0x5A0. Keep backward compatibility
+     * with older non-zero 0x1A0 speed frames without letting the keepalive
+     * overwrite a fresh 0x5A0 speed sample with 0 km/h.
+     */
+    if (raw == 0U && rx->data[0] == 0U) {
+        return 0U;
+    }
+
+    *speed_kmh = (uint16_t)(raw / CAN_CLUSTER_SPEED_1A0_SCALE_DIV);
+    return 1U;
 }
 
 static uint16_t decode_cluster_speed_5a0(const CAN_RxMessage_t *rx)
 {
-    return rx->data[CAN_CLUSTER_SPEED_5A0_VALUE_IDX];
+    return (uint16_t)rx->data[CAN_CLUSTER_SPEED_5A0_VALUE_IDX] *
+           CAN_CLUSTER_SPEED_5A0_SCALE_MUL;
 }
 
 static void update_vehicle_speed(uint16_t speed_kmh)
@@ -121,7 +138,11 @@ void ADAS_Can_PollRx(uint32_t timeout_ms)
 
     if (rx.id == CAN_ID_CLUSTER_SPEED_1A0 &&
         rx.dlc >= CAN_CLUSTER_DLC) {
-        update_vehicle_speed(decode_cluster_speed_1a0(&rx));
+        uint16_t speed_kmh;
+
+        if (decode_cluster_speed_1a0(&rx, &speed_kmh)) {
+            update_vehicle_speed(speed_kmh);
+        }
         return;
     }
 

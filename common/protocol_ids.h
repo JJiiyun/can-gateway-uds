@@ -8,6 +8,7 @@
 #define CAN_ID_WARNING              0x480u
 #define CAN_ID_BODY_STATUS          0x390u
 #define CAN_ID_ADAS_STATUS          0x3A0u
+#define CAN_ID_CLUSTER_BRIGHTNESS   0x635u
 
 #define CAN_ID_UDS_REQ_BOARD_B      0x714u
 #define CAN_ID_UDS_RESP_BOARD_B     0x77Eu
@@ -24,6 +25,10 @@
 #define CAN_ENGINE_DATA_DLC         8u
 #define CAN_DLC_BODY_STATUS         8u
 #define CAN_ADAS_STATUS_DLC         8u
+#define CAN_CLUSTER_BRIGHTNESS_DLC  8u
+
+#define CAN_CLUSTER_BRIGHTNESS_LEVEL_IDX 0u
+#define CAN_CLUSTER_BRIGHTNESS_MAX       0x64u
 
 #define CAN_ADAS_STATUS_FLAGS_IDX          0u
 #define CAN_ADAS_STATUS_RISK_LEVEL_IDX     1u

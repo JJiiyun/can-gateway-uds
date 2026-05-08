@@ -37,6 +37,11 @@ static uint8_t is_turn_tx_id(uint32_t id)
     return id == CAN_ID_CLUSTER_TURN_STATUS;
 }
 
+static uint8_t is_brightness_tx_id(uint32_t id)
+{
+    return id == CAN_ID_CLUSTER_BRIGHTNESS;
+}
+
 static uint8_t decode_ign_on(const CAN_Msg_t *msg, const char **source)
 {
     if (msg->id == CAN_ID_IGN_STATUS && msg->dlc == CAN_ENGINE_DATA_DLC) {
@@ -70,15 +75,17 @@ int BCM_Can_Init(void)
     return 0;
 }
 
-int BCM_Can_SendTurnStatus(const CAN_Msg_t *msg)
+static int send_checked_frame(const CAN_Msg_t *msg, uint8_t id_ok,
+                              uint8_t expected_dlc, const char *name)
 {
     HAL_StatusTypeDef tx_status;
 
     if (msg == NULL ||
-        !is_turn_tx_id(msg->id) ||
-        msg->dlc != CAN_CLUSTER_FRAME_DLC) {
+        !id_ok ||
+        msg->dlc != expected_dlc) {
         s_stats.tx_error_count++;
-        uartPrintf(0, "[BCM] TX REJECT id=0x%03lX dlc=%u err=%lu\r\n",
+        uartPrintf(0, "[BCM] TX REJECT %s id=0x%03lX dlc=%u err=%lu\r\n",
+                   name,
                    msg != NULL ? (unsigned long)msg->id : 0UL,
                    msg != NULL ? (unsigned int)msg->dlc : 0U,
                    (unsigned long)s_stats.tx_error_count);
@@ -100,7 +107,8 @@ int BCM_Can_SendTurnStatus(const CAN_Msg_t *msg)
     s_stats.tx_count++;
     if (s_stats.tx_count == 1U || (s_stats.tx_count % 10U) == 0U) {
         uartPrintf(0,
-                   "[BCM] CAN1 TX OK id=0x%03lX tx=%lu data=%02X %02X %02X %02X %02X %02X %02X %02X hal=0x%08lX\r\n",
+                   "[BCM] CAN1 TX OK %s id=0x%03lX tx=%lu data=%02X %02X %02X %02X %02X %02X %02X %02X hal=0x%08lX\r\n",
+                   name,
                    (unsigned long)msg->id,
                    (unsigned long)s_stats.tx_count,
                    msg->data[0], msg->data[1], msg->data[2], msg->data[3],
@@ -108,6 +116,22 @@ int BCM_Can_SendTurnStatus(const CAN_Msg_t *msg)
                    (unsigned long)HAL_CAN_GetError(&hcan1));
     }
     return 0;
+}
+
+int BCM_Can_SendTurnStatus(const CAN_Msg_t *msg)
+{
+    return send_checked_frame(msg,
+                              msg != NULL ? is_turn_tx_id(msg->id) : 0U,
+                              CAN_CLUSTER_FRAME_DLC,
+                              "turn");
+}
+
+int BCM_Can_SendBrightness(const CAN_Msg_t *msg)
+{
+    return send_checked_frame(msg,
+                              msg != NULL ? is_brightness_tx_id(msg->id) : 0U,
+                              CAN_CLUSTER_BRIGHTNESS_DLC,
+                              "brightness");
 }
 
 void BCM_Can_PollRx(uint32_t timeout_ms)
