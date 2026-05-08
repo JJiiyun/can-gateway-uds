@@ -29,6 +29,7 @@ constexpr int kPedalRampMs = 80;
 constexpr int kThrottleStep = 3;
 constexpr int kBrakeStep = 4;
 constexpr int kTargetEngineTxPeriodMs = 50;
+constexpr int kEngineSpeedMaxKmh = 240;
 
 QProgressBar *makeProgressBar(int maximum, const QString &format)
 {
@@ -514,7 +515,7 @@ void MainWindow::setupUi()
     rpmBar_->setProperty("metric", "rpm");
     rpmBar_->setMinimumHeight(66);
 
-    speedBar_ = makeProgressBar(240, QStringLiteral("%v km/h"));
+    speedBar_ = makeProgressBar(kEngineSpeedMaxKmh, QStringLiteral("%v km/h"));
     speedBar_->setProperty("metric", "speed");
     speedBar_->setMinimumHeight(52);
 

@@ -21,6 +21,10 @@ class GatewayController : public QObject
     Q_PROPERTY(int busy READ busy NOTIFY dataChanged)
     Q_PROPERTY(int errors READ errors NOTIFY dataChanged)
     Q_PROPERTY(bool warning READ warning NOTIFY dataChanged)
+    Q_PROPERTY(int routeMatched READ routeMatched NOTIFY dataChanged)
+    Q_PROPERTY(int routeOk READ routeOk NOTIFY dataChanged)
+    Q_PROPERTY(int routeFail READ routeFail NOTIFY dataChanged)
+    Q_PROPERTY(int routeIgnored READ routeIgnored NOTIFY dataChanged)
     Q_PROPERTY(int rpm READ rpm NOTIFY dataChanged)
     Q_PROPERTY(int speed READ speed NOTIFY dataChanged)
     Q_PROPERTY(int coolant READ coolant NOTIFY dataChanged)
@@ -38,7 +42,19 @@ class GatewayController : public QObject
     Q_PROPERTY(QString lastBodyRx READ lastBodyRx NOTIFY dataChanged)
     Q_PROPERTY(bool clusterRpmActive READ clusterRpmActive NOTIFY dataChanged)
     Q_PROPERTY(bool clusterSpeedActive READ clusterSpeedActive NOTIFY dataChanged)
+    Q_PROPERTY(bool clusterSpeedNeedleActive READ clusterSpeedNeedleActive NOTIFY dataChanged)
+    Q_PROPERTY(bool clusterCoolantActive READ clusterCoolantActive NOTIFY dataChanged)
+    Q_PROPERTY(bool clusterIgnActive READ clusterIgnActive NOTIFY dataChanged)
     Q_PROPERTY(bool clusterBodyActive READ clusterBodyActive NOTIFY dataChanged)
+    Q_PROPERTY(bool clusterTurnActive READ clusterTurnActive NOTIFY dataChanged)
+    Q_PROPERTY(bool adasValid READ adasValid NOTIFY dataChanged)
+    Q_PROPERTY(int adasRisk READ adasRisk NOTIFY dataChanged)
+    Q_PROPERTY(int adasFault READ adasFault NOTIFY dataChanged)
+    Q_PROPERTY(int adasDtc READ adasDtc NOTIFY dataChanged)
+    Q_PROPERTY(int adasFront READ adasFront NOTIFY dataChanged)
+    Q_PROPERTY(int adasRear READ adasRear NOTIFY dataChanged)
+    Q_PROPERTY(int adasSpeed READ adasSpeed NOTIFY dataChanged)
+    Q_PROPERTY(int adasAlive READ adasAlive NOTIFY dataChanged)
     Q_PROPERTY(QString latestFrameId READ latestFrameId NOTIFY dataChanged)
     Q_PROPERTY(QString latestFrameBus READ latestFrameBus NOTIFY dataChanged)
     Q_PROPERTY(QString latestFrameDir READ latestFrameDir NOTIFY dataChanged)
@@ -62,6 +78,10 @@ public:
     int busy() const;
     int errors() const;
     bool warning() const;
+    int routeMatched() const;
+    int routeOk() const;
+    int routeFail() const;
+    int routeIgnored() const;
     int rpm() const;
     int speed() const;
     int coolant() const;
@@ -79,7 +99,19 @@ public:
     QString lastBodyRx() const;
     bool clusterRpmActive() const;
     bool clusterSpeedActive() const;
+    bool clusterSpeedNeedleActive() const;
+    bool clusterCoolantActive() const;
+    bool clusterIgnActive() const;
     bool clusterBodyActive() const;
+    bool clusterTurnActive() const;
+    bool adasValid() const;
+    int adasRisk() const;
+    int adasFault() const;
+    int adasDtc() const;
+    int adasFront() const;
+    int adasRear() const;
+    int adasSpeed() const;
+    int adasAlive() const;
     QString latestFrameId() const;
     QString latestFrameBus() const;
     QString latestFrameDir() const;
@@ -119,6 +151,10 @@ private:
     int m_busy = 0;
     int m_errors = 0;
     bool m_warning = false;
+    int m_routeMatched = 0;
+    int m_routeOk = 0;
+    int m_routeFail = 0;
+    int m_routeIgnored = 0;
 
     int m_rpm = 0;
     int m_speed = 0;
@@ -139,7 +175,19 @@ private:
 
     bool m_clusterRpmActive = false;
     bool m_clusterSpeedActive = false;
+    bool m_clusterSpeedNeedleActive = false;
+    bool m_clusterCoolantActive = false;
+    bool m_clusterIgnActive = false;
     bool m_clusterBodyActive = false;
+    bool m_clusterTurnActive = false;
+    bool m_adasValid = false;
+    int m_adasRisk = 0;
+    int m_adasFault = 0;
+    int m_adasDtc = 0;
+    int m_adasFront = 0;
+    int m_adasRear = 0;
+    int m_adasSpeed = 0;
+    int m_adasAlive = 0;
 
     QString m_latestFrameId = QStringLiteral("-");
     QString m_latestFrameBus = QStringLiteral("-");

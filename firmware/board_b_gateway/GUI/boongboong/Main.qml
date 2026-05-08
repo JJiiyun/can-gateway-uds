@@ -495,7 +495,7 @@ ApplicationWindow {
                         ListElement { frameId: "0x5A0"; name: "Speed needle"; period: "50 ms"; key: "needle" }
                         ListElement { frameId: "0x288"; name: "Coolant Motor_2"; period: "100 ms"; key: "coolant" }
                         ListElement { frameId: "0x531"; name: "Turn status"; period: "100 ms"; key: "turn" }
-                        ListElement { frameId: "0x480"; name: "mMotor_5 warning"; period: "100 ms"; key: "warning" }
+                        ListElement { frameId: "0x481"; name: "Engine warning"; period: "100 ms"; key: "warning" }
                     }
 
                     ListView {
