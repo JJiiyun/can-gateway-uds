@@ -75,14 +75,14 @@ static inline void SignalDb_EncodeBremse1Speed(uint8_t data[8], uint16_t kmh)
 {
     SignalDb_ClearFrame(data);
     SignalDb_SetLeSignal(data, SIGNAL_DB_BREMSE_1_SPEED_START,
-                         SIGNAL_DB_BREMSE_1_SPEED_LENGTH, (uint32_t)kmh * 100u);
+                         SIGNAL_DB_BREMSE_1_SPEED_LENGTH, (uint32_t)kmh * 80u);
 }
 
 static inline uint16_t SignalDb_DecodeBremse1Speed(const uint8_t data[8])
 {
     uint32_t raw = SignalDb_GetLeSignal(data, SIGNAL_DB_BREMSE_1_SPEED_START,
                                         SIGNAL_DB_BREMSE_1_SPEED_LENGTH);
-    return (uint16_t)(raw / 100u);
+    return (uint16_t)(raw / 80u);
 }
 
 static inline void SignalDb_EncodeMotor2Coolant(uint8_t data[8], uint8_t celsius)

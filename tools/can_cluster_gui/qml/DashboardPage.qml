@@ -87,7 +87,7 @@ Rectangle {
                 height: 316
                 title: "Vehicle Speed"
                 value: gateway.speed > 0 ? gateway.speed : engine.speed
-                maxValue: 260
+                maxValue: 240
                 unit: "km/h"
                 detail: "Cluster output 0x1A0 Bremse_1"
                 accent: "#28c76f"

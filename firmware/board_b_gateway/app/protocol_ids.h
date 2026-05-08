@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 
+#define CAN_ID_CLUSTER_IGN_STATUS    0x100U
 #define CAN_ID_BODY_STATUS           0x390U
 #define CAN_ID_ADAS_STATUS           0x3A0U  /* Temporary Board E -> Gateway ID. */
 #define CAN_ID_WARNING               0x480U
@@ -12,6 +13,7 @@
 #define CAN_ID_CLUSTER_SPEED_1A0     0x1A0U
 #define CAN_ID_CLUSTER_RPM           0x280U
 #define CAN_ID_CLUSTER_COOLANT       0x288U
+#define CAN_ID_ENGINE_WARNING_STATUS 0x481U
 #define CAN_ID_CLUSTER_TURN          0x531U
 #define CAN_ID_CLUSTER_SPEED_5A0     0x5A0U
 #define CAN_ID_CLUSTER_BRIGHTNESS    0x635U
@@ -19,13 +21,19 @@
 #define CAN_CLUSTER_DLC                  8U
 #define CAN_DLC_BODY_STATUS              8U
 #define CAN_ADAS_STATUS_DLC              8U
+#define CAN_ENGINE_WARNING_DLC           8U
 
 #define CAN_CLUSTER_RPM_RAW_IDX          2U
 #define CAN_CLUSTER_RPM_SCALE_DIV        4U
 #define CAN_CLUSTER_SPEED_1A0_RAW_IDX    2U
 #define CAN_CLUSTER_SPEED_1A0_SCALE_DIV  80U
+#define CAN_CLUSTER_SPEED_MAX_KMH        240U
 #define CAN_CLUSTER_SPEED_5A0_VALUE_IDX  2U
+#define CAN_CLUSTER_SPEED_5A0_SCALE_MUL  2U
 #define CAN_CLUSTER_COOLANT_VALUE_IDX    1U
+#define CAN_CLUSTER_COOLANT_SCALE_NUM    3U
+#define CAN_CLUSTER_COOLANT_SCALE_DEN    4U
+#define CAN_CLUSTER_COOLANT_OFFSET_C     48U
 
 #define CAN_ADAS_STATUS_FLAGS_IDX        0U
 #define CAN_ADAS_STATUS_RISK_LEVEL_IDX   1U
