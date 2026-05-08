@@ -37,14 +37,12 @@ Board A EngineSim은 기존 `0x100` 통합 프레임 대신 아래 계기판 CAN
 
 | CAN ID | DLC | 의미 | 주요 payload |
 |---:|---:|---|---|
-| `0x100` | 8 | IGN 상태 | `byte[5] bit0 = IGN ON` |
 | `0x280` | 8 | RPM 계기판 바늘 | `byte[2]~byte[3]` little-endian raw, `rpm = raw / 4` |
 | `0x1A0` | 8 | Speed 바늘용 주기 프레임 | `byte[2]~byte[3]` little-endian raw, `speed = raw / 80` |
-| `0x5A0` | 8 | Speed 보조 프레임 | `byte[2] = speed / 2`, Gateway monitor는 `* 2`로 복원 |
-| `0x288` | 8 | 냉각수 바늘 | `byte[1]` raw, `coolant = (raw * 3 / 4) - 48` |
-| `0x481` | 8 | Engine warning status | RPM/coolant warning bitfield + alive counter |
+| `0x5A0` | 8 | Speed 보조 프레임 | `byte[2]` speed 값 |
+| `0x288` | 8 | 냉각수 바늘 | `byte[1]` coolant 값 |
 
-Gateway routing table에는 위 6개 ID가 CAN1 -> CAN2로 등록되어 있습니다.
+Gateway routing table에는 위 4개 ID가 CAN1 -> CAN2로 등록되어 있습니다.
 
 ## 추가 라우팅 대상
 

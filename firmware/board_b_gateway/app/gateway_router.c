@@ -59,7 +59,6 @@ static uint16_t get_u16_le(const uint8_t *data, uint8_t idx)
 {
     return (uint16_t)(((uint16_t)data[idx + 1U] << 8) | data[idx]);
 }
-
 static uint16_t clamp_speed(uint16_t speed)
 {
     if (speed > CAN_CLUSTER_SPEED_MAX_KMH) {
@@ -90,7 +89,6 @@ static uint8_t decode_coolant(uint8_t raw)
 
     return (uint8_t)scaled;
 }
-
 static void update_monitor(const CAN_RxMessage_t *rx_msg)
 {
     uint16_t raw;

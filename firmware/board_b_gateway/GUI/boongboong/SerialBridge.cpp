@@ -27,6 +27,9 @@ int SerialBridge::can2Tx() const { return m_can2Tx; }
 int SerialBridge::busy() const { return m_busy; }
 int SerialBridge::errors() const { return m_errors; }
 bool SerialBridge::warning() const { return m_warning; }
+bool SerialBridge::engineRpmWarning() const { return m_engineRpmWarning; }
+bool SerialBridge::engineCoolantWarning() const { return m_engineCoolantWarning; }
+bool SerialBridge::engineGeneralWarning() const { return m_engineGeneralWarning; }
 int SerialBridge::routeMatched() const { return m_routeMatched; }
 int SerialBridge::routeOk() const { return m_routeOk; }
 int SerialBridge::routeFail() const { return m_routeFail; }
@@ -131,6 +134,9 @@ void SerialBridge::resetMonitor()
     m_busy = 0;
     m_errors = 0;
     m_warning = false;
+    m_engineRpmWarning = false;
+    m_engineCoolantWarning = false;
+    m_engineGeneralWarning = false;
     m_routeMatched = 0;
     m_routeOk = 0;
     m_routeFail = 0;
@@ -599,6 +605,12 @@ QString SerialBridge::decodeFrame(const QString &id, const QList<int> &bytes, co
         const bool general = !bytes.isEmpty() && ((bytes[0] & 0x04) != 0);
         const int warningRpm = bytes.size() >= 4 ? (bytes[2] | (bytes[3] << 8)) : 0;
         const int warningCoolant = bytes.size() >= 2 ? bytes[1] : 0;
+        if (id == "0x481") {
+            m_engineRpmWarning = rpmWarning;
+            m_engineCoolantWarning = coolantWarning;
+            m_engineGeneralWarning = general;
+        }
+
         m_warning = rpmWarning || coolantWarning || general;
         emit dataChanged();
         return QString("engine_warning rpm_warn=%1 coolant_warn=%2 general=%3 rpm=%4 coolant=%5")

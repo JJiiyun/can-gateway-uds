@@ -7,6 +7,8 @@
 #define CAN_ID_BODY_STATUS           0x390U
 #define CAN_ID_ADAS_STATUS           0x3A0U  /* Temporary Board E -> Gateway ID. */
 #define CAN_ID_WARNING               0x480U
+#define CAN_ID_GOLF6_AIRBAG_1        0x050U
+#define CAN_ID_PARKING_ASSIST        0x5D6U
 #define CAN_ID_GATEWAY_UDS_REQ       0x714U
 #define CAN_ID_GATEWAY_UDS_RESP      0x77EU
 
@@ -79,5 +81,9 @@
 #define GOLF6_MO5_HLEUCHTE_BIT           40U
 #define GOLF6_MO5_TDE_LAMPE_BIT          44U
 #define GOLF6_MO5_MOTORTEXT3_BIT         54U
+
+/* Parking Assist CAN 0x5D6 for ADAS warning gong. */
+#define PARKING_ASSIST_DLC               8U
+#define PARKING_ASSIST_GONG_BIT          0U
 
 #endif
