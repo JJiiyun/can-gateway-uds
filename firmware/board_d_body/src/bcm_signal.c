@@ -15,11 +15,11 @@ static void set_mask(uint8_t *byte, uint8_t mask, uint8_t on)
     }
 }
 
-static void init_frame(CAN_Msg_t *msg, uint32_t id)
+static void init_frame(CAN_Msg_t *msg, uint32_t id, uint8_t dlc)
 {
     memset(msg, 0, sizeof(*msg));
     msg->id = id;
-    msg->dlc = CAN_CLUSTER_FRAME_DLC;
+    msg->dlc = dlc;
 }
 
 void BCM_Signal_BuildTurnFrame(const BcmSignal_TurnStatus_t *status,
@@ -33,7 +33,7 @@ void BCM_Signal_BuildTurnFrame(const BcmSignal_TurnStatus_t *status,
         return;
     }
 
-    init_frame(out_msg, CAN_ID_CLUSTER_TURN_STATUS);
+    init_frame(out_msg, CAN_ID_CLUSTER_TURN_STATUS, CAN_CLUSTER_FRAME_DLC);
 
     left_on = ((status->input.turn_left_enabled ||
                 status->input.hazard_enabled) &&
@@ -52,4 +52,19 @@ void BCM_Signal_BuildTurnFrame(const BcmSignal_TurnStatus_t *status,
     set_mask(&out_msg->data[CAN_CLUSTER_531_TURN_IDX],
              CLUSTER_531_TURN_HAZARD_BIT,
              hazard_on);
+}
+
+void BCM_Signal_BuildBrightnessFrame(uint8_t level_percent,
+                                     CAN_Msg_t *out_msg)
+{
+    if (out_msg == NULL) {
+        return;
+    }
+
+    init_frame(out_msg, CAN_ID_CLUSTER_BRIGHTNESS, CAN_CLUSTER_BRIGHTNESS_DLC);
+    if (level_percent > CAN_CLUSTER_BRIGHTNESS_MAX) {
+        level_percent = CAN_CLUSTER_BRIGHTNESS_MAX;
+    }
+
+    out_msg->data[CAN_CLUSTER_BRIGHTNESS_LEVEL_IDX] = level_percent;
 }
