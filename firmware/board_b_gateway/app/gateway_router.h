@@ -16,7 +16,7 @@ typedef struct {
     uint8_t engine_valid;
     uint16_t rpm;
     uint16_t speed_1a0;
-    uint8_t speed_5a0;
+    uint16_t speed_5a0;
     uint8_t coolant;
     uint8_t ignition_on;
     uint8_t turn_valid;

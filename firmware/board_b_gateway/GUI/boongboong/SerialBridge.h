@@ -21,6 +21,9 @@ class SerialBridge : public QObject
     Q_PROPERTY(int busy READ busy NOTIFY dataChanged)
     Q_PROPERTY(int errors READ errors NOTIFY dataChanged)
     Q_PROPERTY(bool warning READ warning NOTIFY dataChanged)
+    Q_PROPERTY(bool engineRpmWarning READ engineRpmWarning NOTIFY dataChanged)
+    Q_PROPERTY(bool engineCoolantWarning READ engineCoolantWarning NOTIFY dataChanged)
+    Q_PROPERTY(bool engineGeneralWarning READ engineGeneralWarning NOTIFY dataChanged)
     Q_PROPERTY(int routeMatched READ routeMatched NOTIFY dataChanged)
     Q_PROPERTY(int routeOk READ routeOk NOTIFY dataChanged)
     Q_PROPERTY(int routeFail READ routeFail NOTIFY dataChanged)
@@ -80,6 +83,9 @@ public:
     int busy() const;
     int errors() const;
     bool warning() const;
+    bool engineRpmWarning() const;
+    bool engineCoolantWarning() const;
+    bool engineGeneralWarning() const;
     int routeMatched() const;
     int routeOk() const;
     int routeFail() const;
@@ -170,6 +176,9 @@ private:
     int m_busy = 0;
     int m_errors = 0;
     bool m_warning = false;
+    bool m_engineRpmWarning = false;
+    bool m_engineCoolantWarning = false;
+    bool m_engineGeneralWarning = false;
     int m_routeMatched = 0;
     int m_routeOk = 0;
     int m_routeFail = 0;

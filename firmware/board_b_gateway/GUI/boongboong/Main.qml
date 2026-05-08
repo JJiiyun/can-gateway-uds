@@ -32,6 +32,9 @@ ApplicationWindow {
         property int busy: serialBridge.busy
         property int errors: serialBridge.errors
         property bool warning: serialBridge.warning
+        property bool engineRpmWarning: serialBridge.engineRpmWarning
+        property bool engineCoolantWarning: serialBridge.engineCoolantWarning
+        property bool engineGeneralWarning: serialBridge.engineGeneralWarning
         property int routeMatched: serialBridge.routeMatched
         property int routeOk: serialBridge.routeOk
         property int routeFail: serialBridge.routeFail
@@ -175,9 +178,11 @@ ApplicationWindow {
     component StatusPill: Rectangle {
         property string label: ""
         property bool active: false
+        property color activeColor: root.goodColor
+        property color activeBg: "#203b2d"
 
-        color: active ? "#203b2d" : root.panelSoft
-        border.color: active ? root.goodColor : root.panelBorder
+        color: active ? activeBg : root.panelSoft
+        border.color: active ? activeColor : root.panelBorder
         border.width: 1
         radius: 6
 
@@ -187,7 +192,7 @@ ApplicationWindow {
             width: 8
             height: 8
             radius: 4
-            color: active ? root.goodColor : root.textMuted
+            color: active ? activeColor : root.textMuted
         }
 
         Text {
@@ -320,7 +325,7 @@ ApplicationWindow {
         Item {
             id: page
             width: flick.contentWidth
-            height: 1010
+            height: 1070
 
             readonly property int margin: 18
             readonly property int gap: 14
@@ -366,7 +371,7 @@ ApplicationWindow {
                 x: page.margin
                 y: 164
                 width: page.halfW
-                height: 360
+                height: 420
                 color: root.panelColor
                 border.color: root.panelBorder
                 border.width: 1
@@ -401,9 +406,13 @@ ApplicationWindow {
                 SmallTile { x: 46 + routerPanel.tileW * 2; y: 86; width: routerPanel.tileW; height: 58; label: "Coolant"; value: gateway.coolant }
                 SmallTile { x: 60 + routerPanel.tileW * 3; y: 86; width: routerPanel.tileW; height: 58; label: "IGN"; value: gateway.ignition ? "ON" : "OFF" }
 
+                StatusPill { x: 18; y: 154; width: (parent.width - 64) / 3; height: 34; label: "RPM Warn"; active: gateway.engineRpmWarning; activeColor: root.badColor; activeBg: "#3a2024" }
+                StatusPill { x: 32 + (parent.width - 64) / 3; y: 154; width: (parent.width - 64) / 3; height: 34; label: "Coolant Warn"; active: gateway.engineCoolantWarning; activeColor: root.warnColor; activeBg: "#3b321e" }
+                StatusPill { x: 46 + ((parent.width - 64) / 3) * 2; y: 154; width: (parent.width - 64) / 3; height: 34; label: "General Warn"; active: gateway.engineGeneralWarning; activeColor: root.warnColor; activeBg: "#3b321e" }
+
                 Text {
                     x: 18
-                    y: 166
+                    y: 206
                     width: parent.width - 36
                     text: "Board D Body Input"
                     color: root.textPrimary
@@ -412,14 +421,14 @@ ApplicationWindow {
                     elide: Text.ElideRight
                 }
 
-                StatusPill { x: 18; y: 198; width: routerPanel.tileW; height: 34; label: "Left"; active: gateway.turnLeft }
-                StatusPill { x: 32 + routerPanel.tileW; y: 198; width: routerPanel.tileW; height: 34; label: "Right"; active: gateway.turnRight }
-                StatusPill { x: 46 + routerPanel.tileW * 2; y: 198; width: routerPanel.tileW; height: 34; label: "Hazard"; active: gateway.turnLeft && gateway.turnRight }
-                StatusPill { x: 60 + routerPanel.tileW * 3; y: 198; width: routerPanel.tileW; height: 34; label: "Seen"; active: serialBridge.lastBodyRx !== "-" }
+                StatusPill { x: 18; y: 238; width: routerPanel.tileW; height: 34; label: "Left"; active: gateway.turnLeft }
+                StatusPill { x: 32 + routerPanel.tileW; y: 238; width: routerPanel.tileW; height: 34; label: "Right"; active: gateway.turnRight }
+                StatusPill { x: 46 + routerPanel.tileW * 2; y: 238; width: routerPanel.tileW; height: 34; label: "Hazard"; active: gateway.turnLeft && gateway.turnRight }
+                StatusPill { x: 60 + routerPanel.tileW * 3; y: 238; width: routerPanel.tileW; height: 34; label: "Seen"; active: serialBridge.lastBodyRx !== "-" }
 
                 Text {
                     x: 18
-                    y: 254
+                    y: 294
                     width: parent.width - 36
                     text: "Board E Safety Input"
                     color: root.textPrimary
@@ -428,10 +437,10 @@ ApplicationWindow {
                     elide: Text.ElideRight
                 }
 
-                SmallTile { x: 18; y: 286; width: routerPanel.tileW; height: 58; label: "Risk"; value: gateway.adasRisk }
-                SmallTile { x: 32 + routerPanel.tileW; y: 286; width: routerPanel.tileW; height: 58; label: "Front"; value: gateway.adasFront + " cm" }
-                SmallTile { x: 46 + routerPanel.tileW * 2; y: 286; width: routerPanel.tileW; height: 58; label: "Rear"; value: gateway.adasRear + " cm" }
-                SmallTile { x: 60 + routerPanel.tileW * 3; y: 286; width: routerPanel.tileW; height: 58; label: "Fault"; value: "0x" + gateway.adasFault.toString(16).toUpperCase() }
+                SmallTile { x: 18; y: 326; width: routerPanel.tileW; height: 58; label: "Risk"; value: gateway.adasRisk }
+                SmallTile { x: 32 + routerPanel.tileW; y: 326; width: routerPanel.tileW; height: 58; label: "Front"; value: gateway.adasFront + " cm" }
+                SmallTile { x: 46 + routerPanel.tileW * 2; y: 326; width: routerPanel.tileW; height: 58; label: "Rear"; value: gateway.adasRear + " cm" }
+                SmallTile { x: 60 + routerPanel.tileW * 3; y: 326; width: routerPanel.tileW; height: 58; label: "Fault"; value: "0x" + gateway.adasFault.toString(16).toUpperCase() }
             }
 
             Rectangle {
@@ -439,7 +448,7 @@ ApplicationWindow {
                 x: page.margin + page.halfW + page.gap
                 y: 164
                 width: page.halfW
-                height: 360
+                height: 420
                 color: root.panelColor
                 border.color: root.panelBorder
                 border.width: 1
@@ -578,7 +587,7 @@ ApplicationWindow {
             Rectangle {
                 id: logPanel
                 x: page.margin
-                y: 538
+                y: 598
                 width: page.innerWidth
                 height: 430
                 color: root.panelColor
