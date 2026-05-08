@@ -133,27 +133,30 @@ static void update_brightness_fade(uint8_t ign_on, uint32_t now)
     } else if (!ign_on) {
         s_brightness_fade_active = 0U;
         s_brightness_fade_level = 0U;
+        s_last_ign_on = ign_on;
+        return;
     }
 
     s_last_ign_on = ign_on;
 
-    if (!s_brightness_fade_active ||
-        (uint32_t)(now - s_last_brightness_fade_tick) < PERIOD_BRIGHTNESS_FADE_MS) {
-        return;
-    }
-
-    BCM_Signal_BuildBrightnessFrame(s_brightness_fade_level, &msg);
-    if (BCM_Can_SendBrightness(&msg) != 0) {
-        return;
-    }
-
-    s_last_brightness_fade_tick = now;
-    if (s_brightness_fade_level >= CAN_CLUSTER_BRIGHTNESS_MAX) {
-        s_brightness_fade_active = 0U;
-        uartPrintf(0, "[BCM] Cluster brightness fade done level=%u\r\n",
-                   (unsigned int)s_brightness_fade_level);
-    } else {
+    /* Animate brightness increase if fade is active */
+    if (s_brightness_fade_active &&
+        (uint32_t)(now - s_last_brightness_fade_tick) >= PERIOD_BRIGHTNESS_FADE_MS) {
+        
         s_brightness_fade_level++;
+        s_last_brightness_fade_tick = now;
+        
+        if (s_brightness_fade_level >= CAN_CLUSTER_BRIGHTNESS_MAX) {
+            s_brightness_fade_active = 0U;
+            uartPrintf(0, "[BCM] Cluster brightness fade done level=%u\r\n",
+                       (unsigned int)s_brightness_fade_level);
+        }
+    }
+
+    /* While IGN is on and brightness is set, continuously send brightness frame */
+    if (ign_on && s_brightness_fade_level > 0U) {
+        BCM_Signal_BuildBrightnessFrame(s_brightness_fade_level, &msg);
+        (void)BCM_Can_SendBrightness(&msg);
     }
 }
 
