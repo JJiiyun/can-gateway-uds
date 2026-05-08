@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "bcm_body.h"
+#include "bcm_can.h"
 #include "bcm_input.h"
 #include "cli.h"
 #include "cmsis_os2.h"
@@ -65,9 +66,11 @@ static void print_monitor_line(void)
 {
     BcmInput_State_t input;
     BcmInput_State_t raw;
+    BcmCan_Stats_t stats;
 
     BCM_Input_GetState(&input);
     BCM_Input_GetRawState(&raw);
+    BCM_Can_GetStats(&stats);
     cliPrintf("BODY mode=%s ign=%u raw=L%u/R%u/H%u turn=L%u/R%u/H%u tx=%lu rx=%lu\r\n",
               BCM_Input_GetModeString(),
               (unsigned)BCM_Body_IsIgnOn(),
@@ -77,17 +80,26 @@ static void print_monitor_line(void)
               (unsigned)input.turn_left_enabled,
               (unsigned)input.turn_right_enabled,
               (unsigned)input.hazard_enabled,
-              (unsigned long)BCM_Body_GetTxCount(),
-              (unsigned long)BCM_Body_GetRxCount());
+              (unsigned long)stats.tx_count,
+              (unsigned long)stats.rx_count);
+    cliPrintf("BODY 531 cnt=%lu dt=%lums age=%lums ign_rx=%lu dt=%lums age=%lums\r\n",
+              (unsigned long)stats.turn_tx_count,
+              (unsigned long)stats.turn_tx_period_ms,
+              (unsigned long)stats.turn_tx_age_ms,
+              (unsigned long)stats.ign_rx_count,
+              (unsigned long)stats.ign_rx_period_ms,
+              (unsigned long)stats.ign_rx_age_ms);
 }
 
 static void print_status(void)
 {
     BcmInput_State_t input;
     BcmInput_State_t raw;
+    BcmCan_Stats_t stats;
 
     BCM_Input_GetState(&input);
     BCM_Input_GetRawState(&raw);
+    BCM_Can_GetStats(&stats);
 
     cliPrintf("\r\n[BCM Turn Status]\r\n");
     cliPrintf("mode        : %s\r\n", BCM_Input_GetModeString());
@@ -102,8 +114,23 @@ static void print_status(void)
               (unsigned)input.turn_left_enabled,
               (unsigned)input.turn_right_enabled,
               (unsigned)input.hazard_enabled);
-    cliPrintf("tx_count    : %lu\r\n", (unsigned long)BCM_Body_GetTxCount());
-    cliPrintf("rx_count    : %lu\r\n", (unsigned long)BCM_Body_GetRxCount());
+    cliPrintf("tx_count    : %lu\r\n", (unsigned long)stats.tx_count);
+    cliPrintf("rx_count    : %lu\r\n", (unsigned long)stats.rx_count);
+    cliPrintf("turn_531    : cnt=%lu, dt=%lu ms, age=%lu ms\r\n",
+              (unsigned long)stats.turn_tx_count,
+              (unsigned long)stats.turn_tx_period_ms,
+              (unsigned long)stats.turn_tx_age_ms);
+    cliPrintf("bright_635  : cnt=%lu, dt=%lu ms, age=%lu ms\r\n",
+              (unsigned long)stats.brightness_tx_count,
+              (unsigned long)stats.brightness_tx_period_ms,
+              (unsigned long)stats.brightness_tx_age_ms);
+    cliPrintf("ign_rx      : valid=%u, on=%u, cnt=%lu, dt=%lu ms, age=%lu ms\r\n",
+              (unsigned)stats.ign_valid,
+              (unsigned)stats.ign_on,
+              (unsigned long)stats.ign_rx_count,
+              (unsigned long)stats.ign_rx_period_ms,
+              (unsigned long)stats.ign_rx_age_ms);
+    cliPrintf("log         : %s\r\n", BCM_Body_GetLogEnabled() ? "on" : "off");
     cliPrintf("monitor     : %s, interval=%lu ms\r\n",
               s_monitor_enabled ? "on" : "off",
               (unsigned long)s_monitor_interval_ms);
@@ -119,6 +146,7 @@ static void print_usage(void)
     cliPrintf("body all off\r\n");
     cliPrintf("body reset\r\n");
     cliPrintf("body status\r\n");
+    cliPrintf("body log on|off|stat\r\n");
     cliPrintf("body monitor on [interval_ms]\r\n");
     cliPrintf("body monitor off\r\n");
     cliPrintf("body monitor once\r\n");
@@ -210,6 +238,25 @@ static void handle_all(uint8_t argc, char *argv[])
     cliPrintf("usage: body all off\r\n");
 }
 
+static void handle_log(uint8_t argc, char *argv[])
+{
+    if (argc < 3 || strcmp(argv[2], "stat") == 0) {
+        cliPrintf("body log = %s\r\n",
+                  BCM_Body_GetLogEnabled() ? "on" : "off");
+        return;
+    }
+
+    if (strcmp(argv[2], "on") == 0) {
+        BCM_Body_SetLogEnabled(1U);
+        cliPrintf("body log = on\r\n");
+    } else if (strcmp(argv[2], "off") == 0) {
+        BCM_Body_SetLogEnabled(0U);
+        cliPrintf("body log = off\r\n");
+    } else {
+        cliPrintf("usage: body log on | off | stat\r\n");
+    }
+}
+
 static void handle_monitor(uint8_t argc, char *argv[])
 {
     if (argc < 3) {
@@ -249,6 +296,7 @@ static void handle_reset(void)
     BCM_Input_SetMode(BCM_INPUT_MODE_GPIO);
     BCM_Input_ClearAll();
     BCM_Body_SetIgnOverride(-1);
+    BCM_Body_SetLogEnabled(0U);
     s_monitor_enabled = false;
     s_monitor_interval_ms = BCM_MONITOR_DEFAULT_INTERVAL_MS;
     cliPrintf("BCM turn reset OK\r\n");
@@ -273,6 +321,8 @@ static void cmd_body(uint8_t argc, char *argv[])
         handle_reset();
     } else if (strcmp(argv[1], "status") == 0) {
         print_status();
+    } else if (strcmp(argv[1], "log") == 0) {
+        handle_log(argc, argv);
     } else if (strcmp(argv[1], "monitor") == 0) {
         handle_monitor(argc, argv);
     } else if (strcmp(argv[1], "help") == 0) {

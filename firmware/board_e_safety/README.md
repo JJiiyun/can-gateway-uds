@@ -135,6 +135,30 @@ Distance is calculated from echo pulse width:
 
 Electrical note: HC-SR04 ECHO is commonly 5 V. Use a voltage divider or level shifter so STM32 GPIO sees 3.3 V or less.
 
+## UART CLI
+
+Default UART is USART3 / ST-LINK VCP, 115200 8N1.
+
+Boot-time debug logs are off by default. Use `adas status` for one-shot inspection, `adas monitor on 100` for periodic verification output, and `adas log on` only when the 1-second automatic CAN summary is needed.
+
+```text
+adas status
+
+adas log on
+adas log off
+adas log stat
+
+adas monitor on 100
+adas monitor off
+adas monitor once
+
+adas event on
+adas event off
+adas event stat
+```
+
+Board E does not have a UART input override mode like Board D. Its ADAS inputs always come from the HC-SR04 sensors plus CAN-derived IGN/speed.
+
 ## Verification
 
 1. Confirm Board A sends CAN1 `0x100` with `byte[5] bit0 = 1`.

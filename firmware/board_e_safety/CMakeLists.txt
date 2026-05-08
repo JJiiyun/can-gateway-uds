@@ -29,6 +29,7 @@ add_subdirectory(${CUBE_BASE}/cmake/stm32cubemx stm32cubemx)
 
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${COMMON_DIR}/can_bsp.c
+    ${COMMON_DIR}/cli.c
     ${COMMON_DIR}/uart.c
     ${BOARD_SRC_DIR}/adas_can.c
     ${BOARD_SRC_DIR}/adas_input.c
