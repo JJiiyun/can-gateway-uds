@@ -33,6 +33,14 @@
 #define PERIOD_BRIGHTNESS_FADE_MS 20U
 #endif
 
+#ifndef PERIOD_BRIGHTNESS_HOLD_MS
+#define PERIOD_BRIGHTNESS_HOLD_MS 100U
+#endif
+
+#ifndef BRIGHTNESS_HOLD_OFFSET_MS
+#define BRIGHTNESS_HOLD_OFFSET_MS 50U
+#endif
+
 #ifndef PERIOD_INPUT_DIAG_LOG_MS
 #define PERIOD_INPUT_DIAG_LOG_MS 250U
 #endif
@@ -55,6 +63,7 @@ static uint8_t s_last_ign_on;
 static uint8_t s_brightness_fade_active;
 static uint8_t s_brightness_fade_level;
 static uint32_t s_last_brightness_fade_tick;
+static uint32_t s_next_brightness_hold_tick;
 static volatile uint8_t s_log_enabled;
 
 static const osThreadAttr_t s_input_task_attributes = {
@@ -129,6 +138,7 @@ static void start_brightness_fade(uint32_t now)
     s_brightness_fade_active = 1U;
     s_brightness_fade_level = 0U;
     s_last_brightness_fade_tick = now;
+    s_next_brightness_hold_tick = now + BRIGHTNESS_HOLD_OFFSET_MS;
     if (s_log_enabled != 0U) {
         uartPrintf(0, "[BCM] Cluster brightness fade start id=0x%03X\r\n",
                    (unsigned int)CAN_ID_CLUSTER_BRIGHTNESS);
@@ -151,6 +161,7 @@ static void update_brightness_fade(uint8_t ign_on, uint32_t now)
     } else if (!ign_on) {
         s_brightness_fade_active = 0U;
         s_brightness_fade_level = 0U;
+        s_next_brightness_hold_tick = 0U;
         s_last_ign_on = ign_on;
         return;
     }
@@ -167,10 +178,23 @@ static void update_brightness_fade(uint8_t ign_on, uint32_t now)
         
         if (s_brightness_fade_level >= CAN_CLUSTER_BRIGHTNESS_MAX) {
             s_brightness_fade_active = 0U;
+            s_next_brightness_hold_tick = now + BRIGHTNESS_HOLD_OFFSET_MS;
             if (s_log_enabled != 0U) {
                 uartPrintf(0, "[BCM] Cluster brightness fade done level=%u\r\n",
                            (unsigned int)s_brightness_fade_level);
             }
+        }
+        return;
+    }
+
+    if (!s_brightness_fade_active &&
+        s_brightness_fade_level >= CAN_CLUSTER_BRIGHTNESS_MAX &&
+        s_next_brightness_hold_tick != 0U &&
+        (int32_t)(now - s_next_brightness_hold_tick) >= 0) {
+        send_brightness_level(s_brightness_fade_level);
+        s_next_brightness_hold_tick += PERIOD_BRIGHTNESS_HOLD_MS;
+        if ((int32_t)(now - s_next_brightness_hold_tick) >= 0) {
+            s_next_brightness_hold_tick = now + PERIOD_BRIGHTNESS_HOLD_MS;
         }
     }
 }

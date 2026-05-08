@@ -1,6 +1,6 @@
 # Board D - Turn Signal ECU
 
-Board D is the body/turn-signal ECU. It owns left/right turn input, `0x531` Turn Status transmission, and the one-shot `0x635` cluster brightness fade on IGN ON. It does not generate RPM, speed, coolant, ADAS, door, high-beam, fog-lamp, or body-status frames.
+Board D is the body/turn-signal ECU. It owns left/right turn input, `0x531` Turn Status transmission, and `0x635` cluster brightness control on IGN ON. It does not generate RPM, speed, coolant, ADAS, door, high-beam, fog-lamp, or body-status frames.
 
 ## Current Contract
 
@@ -9,10 +9,10 @@ Board D is the body/turn-signal ECU. It owns left/right turn input, `0x531` Turn
 | CAN bus | CAN1 |
 | Reference input | Board A `0x100` IGN Status from CAN |
 | TX frames | `0x531` Turn Status, `0x635` Cluster Brightness |
-| TX period | 100 ms |
+| TX period | `0x531`: 100 ms, `0x635` hold: 100 ms with a 50 ms offset |
 | Blink period | 500 ms |
 | Integration gate | Send turn status only while IGN is ON, unless CLI override is used |
-| Brightness fade | On first IGN OFF -> ON edge, send `0x635` byte[0] from `0x00` to `0x64` |
+| Brightness fade/hold | On first IGN OFF -> ON edge, ramp `0x635` byte[0] from `0x00` to `0x64`, then keep sending `0x64` while IGN remains ON |
 
 ## CAN RX
 
@@ -53,7 +53,8 @@ Board B's gateway router expects this frame on CAN1 and routes it to CAN2.
 | CAN ID | `0x635` |
 | DLC | 8 |
 | Trigger | First IGN OFF -> ON edge after boot or after IGN timeout/off |
-| Step period | 20 ms |
+| Step period | 20 ms during fade |
+| Hold period | 100 ms while IGN is ON, offset by 50 ms from the body turn task |
 | Used byte | `byte[0]` |
 
 | Byte | Meaning |
@@ -61,7 +62,7 @@ Board B's gateway router expects this frame on CAN1 and routes it to CAN2.
 | `byte[0]` | Cluster brightness level, `0x00` to `0x64` (0 to 100) |
 | `byte[1]..byte[7]` | 0 |
 
-Board B's gateway router already routes this frame from CAN1 to CAN2.
+Board B's gateway router already routes this frame from CAN1 to CAN2. CAN arbitration prevents bus-level collision with `0x531`; the 50 ms software offset keeps the two periodic sends from being queued on the same scheduler tick.
 
 ## Physical Inputs
 
@@ -107,8 +108,8 @@ body reset
 
 1. Confirm Board A sends CAN1 `0x100` with `byte[5] bit0 = 1`.
 2. Confirm Board D logs or reports IGN ON in `body status`.
-3. Verify CAN1 `0x635` appears once per brightness step from `00 00 00 00 00 00 00 00` through `64 00 00 00 00 00 00 00`.
-4. Press left/right input and verify CAN1 `0x531` appears every 100 ms.
+3. Verify CAN1 `0x635` ramps once per brightness step from `00 00 00 00 00 00 00 00` through `64 00 00 00 00 00 00 00`, then keeps sending `64` every 100 ms while IGN is ON.
+4. Press left/right input and verify CAN1 `0x531` appears every 100 ms, offset from the steady `0x635` hold frame.
 5. Verify `byte[2] bit0` and `byte[2] bit1` blink with the 500 ms blink phase.
 6. Verify Board B routes `0x531` and `0x635` from CAN1 to CAN2.
 
