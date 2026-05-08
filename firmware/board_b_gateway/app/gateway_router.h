@@ -19,6 +19,9 @@ typedef struct {
     uint16_t speed_5a0;
     uint8_t coolant;
     uint8_t ignition_on;
+    uint8_t engine_rpm_warning;
+    uint8_t engine_coolant_warning;
+    uint8_t engine_general_warning;
     uint8_t turn_valid;
     uint8_t turn_left;
     uint8_t turn_right;

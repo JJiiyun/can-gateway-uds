@@ -42,6 +42,8 @@ class SerialBridge : public QObject
     Q_PROPERTY(bool doorRr READ doorRr NOTIFY dataChanged)
     Q_PROPERTY(bool turnLeft READ turnLeft NOTIFY dataChanged)
     Q_PROPERTY(bool turnRight READ turnRight NOTIFY dataChanged)
+    Q_PROPERTY(bool turnLeftBlink READ turnLeftBlink NOTIFY dataChanged)
+    Q_PROPERTY(bool turnRightBlink READ turnRightBlink NOTIFY dataChanged)
     Q_PROPERTY(bool highBeam READ highBeam NOTIFY dataChanged)
     Q_PROPERTY(bool fogLamp READ fogLamp NOTIFY dataChanged)
     Q_PROPERTY(QString lastBodyRx READ lastBodyRx NOTIFY dataChanged)
@@ -104,6 +106,8 @@ public:
     bool doorRr() const;
     bool turnLeft() const;
     bool turnRight() const;
+    bool turnLeftBlink() const;
+    bool turnRightBlink() const;
     bool highBeam() const;
     bool fogLamp() const;
     QString lastBodyRx() const;
@@ -152,6 +156,7 @@ private slots:
     void onReadyRead();
     void onErrorOccurred(QSerialPort::SerialPortError error);
     void onPollSerial();
+    void onBlinkTimer();
 
 private:
     void setStatusText(const QString &text);
@@ -165,6 +170,7 @@ private:
 
     QSerialPort m_serial;
     QTimer m_pollTimer;
+    QTimer m_blinkTimer;
     QByteArray m_rxBuffer;
     QStringList m_portNames;
     QString m_statusText;
@@ -197,6 +203,8 @@ private:
     bool m_doorRr = false;
     bool m_turnLeft = false;
     bool m_turnRight = false;
+    bool m_turnLeftBlink = false;
+    bool m_turnRightBlink = false;
     bool m_highBeam = false;
     bool m_fogLamp = false;
     QString m_lastBodyRx = "-";
