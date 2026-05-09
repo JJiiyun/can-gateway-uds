@@ -76,17 +76,6 @@ static bool tick_reached(uint32_t now, uint32_t target)
     return tick_elapsed(now, target) < 0x80000000UL;
 }
 
-static void set_bit(uint8_t data[8], uint8_t bit, uint8_t on)
-{
-    uint8_t mask = (uint8_t)(1U << (bit % 8U));
-
-    if (on != 0U) {
-        data[bit / 8U] |= mask;
-    } else {
-        data[bit / 8U] &= (uint8_t)~mask;
-    }
-}
-
 static bool safety_status_recent(uint32_t now)
 {
     if (s_diag.valid == 0U) {
@@ -127,12 +116,9 @@ static uint32_t parking_assist_sweep_period_ms(void)
     return GATEWAY_SAFETY_PARKING_ASSIST_SWEEP_RISK2_PERIOD_MS;
 }
 
-static void build_parking_assist_gong(uint8_t data[8],
-                                      bool gong_active,
-                                      bool sweep_byte1)
+static void build_parking_assist_gong(uint8_t data[8], bool sweep_byte1)
 {
     memset(data, 0, PARKING_ASSIST_DLC);
-    set_bit(data, PARKING_ASSIST_GONG_BIT, gong_active ? 1U : 0U);
 
     if (sweep_byte1) {
         /* Probe unknown Parking Assist byte[1] payload: 00..FF continuously. */
@@ -140,12 +126,12 @@ static void build_parking_assist_gong(uint8_t data[8],
     }
 }
 
-static void send_seatbelt_gong(bool gong_active, bool sweep_byte1)
+static void send_seatbelt_gong(bool sweep_byte1)
 {
     uint8_t data[8];
     HAL_StatusTypeDef status;
 
-    build_parking_assist_gong(data, gong_active, sweep_byte1);
+    build_parking_assist_gong(data, sweep_byte1);
     status = CAN_BSP_SendTo(&hcan2, CAN_ID_PARKING_ASSIST, data, PARKING_ASSIST_DLC);
     CanCliMonitor_LogTx(2U, CAN_ID_PARKING_ASSIST, data, PARKING_ASSIST_DLC, status);
 }
@@ -186,7 +172,7 @@ static void update_parking_assist_sweep(uint32_t now)
 
     if (!seatbelt_gong_active(now)) {
         if (s_parking_assist_was_active) {
-            send_seatbelt_gong(false, false);
+            send_seatbelt_gong(false);
         }
 
         s_parking_assist_was_active = false;
@@ -208,7 +194,7 @@ static void update_parking_assist_sweep(uint32_t now)
 
     while (tick_reached(now, s_next_parking_assist_sweep_tick) &&
            burst_count < GATEWAY_SAFETY_PARKING_ASSIST_SWEEP_MAX_BURST) {
-        send_seatbelt_gong(s_gong_asserted, true);
+        send_seatbelt_gong(true);
         s_next_parking_assist_sweep_tick += period_ms;
         burst_count++;
     }

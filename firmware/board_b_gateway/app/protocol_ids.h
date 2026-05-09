@@ -84,6 +84,5 @@
 
 /* Parking Assist CAN 0x5D6 for ADAS warning gong. */
 #define PARKING_ASSIST_DLC               8U
-#define PARKING_ASSIST_GONG_BIT          0U
 
 #endif
