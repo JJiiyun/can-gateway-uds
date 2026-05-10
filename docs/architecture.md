@@ -2,103 +2,115 @@
 
 ## 전체 구조
 
-```
-┌──────────────────────────┐      ┌──────────────────┐      ┌────────────────────┐
-│   보드A (Engine ECU)     │      │ 보드D Body/BCM   │      │ 보드E Safety/ADAS  │
-│   - 가변저항 2개 ADC     │      │ - 0x390 Body TX  │      │ - distance/buttons │
-│   - RPM/Speed/Coolant TX │      │ - Door/Turn/Lamp │      │ - 0x3A0 ADAS TX    │
-│   - 0x100 IGN bit        │      │ - 0x100 IGN RX   │      │ - risk/fault 판단  │
-└────────────┬─────────────┘      └────────┬─────────┘      └─────────┬──────────┘
-             │ CAN1 (Powertrain/Body Bus, 500kbps)
-             └──────────────┬──────────────┘
-                            │
-              ┌─────────────▼─────────────┐
-              │  보드B (Central Gateway)  │
-              │  - 라우팅 테이블          │
-              │  - 이상 감지 (RPM/ADAS)   │
-              │  - 트래픽 로거 (UART)     │
-              │  - VW 계기판 HMI          │
-              └─────────────┬─────────────┘
-                            │ CAN2 (Diagnostic/Cluster Bus, 500kbps)
-                            │
-              ┌─────────────┴─────────────┐
-              │                           │
-              ▼                           ▼
-          ┌──────────┐              ┌──────────────────┐
-          │ 보드C    │              │ VW Passat B6     │
-          │ (UDS)    │              │ 실차 계기판       │
-          │ SID 0x22 │              │ RPM/Speed/Body   │
-          │ UART CLI │              │ 경고등           │
-          └──────────┘              └──────────────────┘
+```text
+┌──────────────────────────┐      ┌────────────────────┐      ┌────────────────────┐
+│   Board A Engine ECU     │      │ Board D Turn ECU   │      │ Board E ADAS ECU   │
+│   - throttle/brake ADC   │      │ - 0x100 IGN RX     │      │ - 0x100 IGN RX     │
+│   - 0x100 IGN TX         │      │ - 0x531 Turn TX    │      │ - 0x5A0 speed RX   │
+│   - 0x280/1A0/5A0/288 TX │      │ - 0x635 Bright TX  │      │ - 0x3A0 ADAS TX    │
+│   - 0x481 Warning TX     │      │                    │      │ - HC-SR04 sensors  │
+└────────────┬─────────────┘      └─────────┬──────────┘      └─────────┬──────────┘
+             │ CAN1 Powertrain / Body / Safety Bus, 500 kbps            │
+             └──────────────────────────────┬───────────────────────────┘
+                                            │
+                              ┌─────────────▼─────────────┐
+                              │  Board B Central Gateway  │
+                              │  - CAN1 -> CAN2 router    │
+                              │  - ADAS diagnostic state  │
+                              │  - 0x5D6 parking sweep    │
+                              │  - Gateway ADAS UDS       │
+                              └─────────────┬─────────────┘
+                                            │ CAN2 Cluster / Diagnostic Bus, 500 kbps
+                  ┌─────────────────────────┴─────────────────────────┐
+                  │                                                   │
+                  ▼                                                   ▼
+          ┌──────────────────┐                              ┌──────────────────┐
+          │ Board C UDS      │                              │ Golf 6 Cluster   │
+          │ - CAN1 peripheral│                              │ - routed frames  │
+          │ - connected to   │                              │ - 0x5D6 receive  │
+          │   Gateway CAN2   │                              │ - UDS target     │
+          └──────────────────┘                              └──────────────────┘
 ```
 
 ## 도메인 분리
 
 | 도메인 | 버스 | 메시지 |
 |---|---|---|
-| Powertrain | CAN1 | 엔진 관련 신호 (0x280 RPM, 0x1A0 Speed, 0x288 Coolant) |
-| Body | CAN1/CAN2 | Body 상태 (0x390), IGN (`0x100 byte5 bit0`) |
+| Powertrain | CAN1 | Board A `0x100`, `0x280`, `0x1A0`, `0x5A0`, `0x288`, `0x481` |
+| Body | CAN1 -> CAN2 | Board D `0x531` 방향지시등, `0x635` 밝기 |
 | Safety | CAN1 | Board E `0x3A0 ADAS_Status`, risk/fault 판단 |
-| Diagnostic/Cluster | CAN2 | UDS (0x714/0x77E), 계기판 제어 (`0x480 mMotor_5` warning), Body 상태 포워딩 |
+| Gateway | CAN1 + CAN2 | 라우팅 테이블, ADAS DTC 저장, `0x5D6` 생성, Gateway ADAS UDS server |
+| Diagnostic/Cluster | CAN2 | Board C `0x714/0x77E`, 계기판 수신 프레임 |
 
 ## FreeRTOS Task 구조
 
-### 보드A (Engine ECU)
-| Task | Priority | Stack | 주기 |
-|---|---|---|---|
-| EngSimTask | Normal | 512 | 10ms tick |
-| DefaultTask | Normal | 1024 | UART CLI loop |
+### Board A - Engine ECU
 
-### 보드B (Gateway)
-| Task | Priority | Stack | 주기 |
-|---|---|---|---|
-| DefaultTask | Normal | 1024 | CAN queue pending |
+| Task | 역할 |
+|---|---|
+| `defaultTask` | UART/CLI/CAN/EngineSim 초기화 |
+| `EngSimTask` | 50 ms 모델 업데이트, CAN 송신 |
 
-### 보드C (UDS)
-| Task | Priority | Stack | 주기 |
-|---|---|---|---|
-| DefaultTask | Normal | 1024 | UART CLI + UDS response polling |
+### Board B - Gateway
 
-### 보드D (Body / BCM)
-| Task | Priority | Stack | 주기 |
-|---|---|---|---|
-| EngineSimTask slot | Low | 512 | 100ms Body status TX |
-| BcmInputTask | Low | 512 | 20ms GPIO polling |
-| BcmIgnRxTask | Low | 512 | CAN RX pending |
+| Task | 역할 |
+|---|---|
+| `StartDefaultTask` | UART/CLI/CAN 초기화 |
+| `GatewayTask` | CAN RX queue 처리, router/safety/UDS 호출 |
+| `ClusterTask` | Safety Bridge 10 ms tick, `0x5D6` 송신 |
+| `LoggerTask` | 1초 상태 로그 |
 
-### 보드E (Safety / ADAS)
-| Task | Priority | Stack | 주기 |
-|---|---|---|---|
-| EngineSimTask slot | Low | 512 | 100ms ADAS status TX |
-| ADAS input loop | Low | same task | 20ms ADC/GPIO polling |
+### Board C - UDS Client
 
-## 데이터 흐름 예시 — "페달 밟기 → 계기판 반응"
+| Task | 역할 |
+|---|---|
+| `UDSMainTask` | UART/CLI/CAN 초기화, UDS response polling |
 
-1. 사용자가 보드A 포텐셔미터 회전
-2. 보드A ADC → RPM 계산 → CAN1 `0x280` 메시지 50ms 주기 송신
-3. 보드B CAN1 RX 콜백 → `can1_rx_queue` push
-4. `GatewayTask`가 Queue pop → 라우팅 테이블 조회
-5. 이상 감지: RPM > 5500 → `s_warning_active = 1`
-6. CAN2로 `0x280` 포워딩 → 계기판이 수신하여 바늘 움직임
-7. 보드D가 도어/방향지시등/하이빔/안개등 상태를 `0x390`으로 송신
-8. 보드B가 `0x390`을 CAN2로 포워딩
-9. PC CLI에서 `read rpm` 입력
-10. 보드C가 `0x714` 요청 → `0x77E` 응답 확인
+### Board D - Turn Signal ECU
 
-## 데이터 흐름 예시 — "ADAS 위험 → 계기판 경고 → UDS 조회"
+| Task | 역할 |
+|---|---|
+| `EngineSim_Task` override | Body main loop. `0x531` 송신과 `0x635` fade/hold |
+| `bcmInput` | 20 ms GPIO polling |
+| `bcmIgnRx` | CAN RX pending, IGN 상태 갱신 |
 
-1. 보드A가 `0x100` EngineData로 speed와 IGN bit를 CAN1에 송신
-2. 보드E가 `0x100` speed를 수신하고 PA0/PA3 ADC, PE6/PF6/PF7 버튼을 읽음
-3. speed >= 40km/h이고 front distance <= 30cm이면 `risk_level = 3`
-4. 보드E가 CAN1 `0x3A0 ADAS_Status`를 100ms 주기로 송신
-5. 보드B Gateway가 `0x3A0`을 수신하고 ADAS 상태와 DTC bitmap을 보관
-6. `risk_level >= 2`이면 보드B가 CAN2 `0x480 mMotor_5`의 `MO5_HLeuchte` warning bit를 송신
-7. sensor fault가 있으면 `MO5_TDE_Lampe`/`MO5_Motortext3`와 UDS fault/DTC 상태에 반영
-8. 보드C에서 `read adas`, `read fault`, `clear dtc`로 상태를 조회/초기화
+### Board E - Safety / ADAS ECU
 
-## 확장 로드맵
+| Task | 역할 |
+|---|---|
+| `EngineSim_Task` override | ADAS main loop. `0x3A0` 100 ms 송신 |
+| `adasInput` | 60 ms HC-SR04 polling |
 
-- [ ] ISO-TP 멀티프레임 (VIN 전체 전송)
-- [ ] UDS 0x10 세션 / 0x27 보안
-- [ ] Bus-off 복구, 에러 카운터 모니터링
-- [ ] CAN 부트로더 (SID 0x34/0x36/0x37)
+## 데이터 흐름 예시 - 페달 입력에서 계기판 반응까지
+
+1. 사용자가 Board A throttle/brake를 조작합니다.
+2. Board A가 RPM/속도/냉각수 모델을 갱신합니다.
+3. Board A가 CAN1에 `0x280`, `0x1A0`, `0x5A0`, `0x288`, `0x481`을 송신합니다.
+4. Board B `GatewayTask`가 CAN RX queue에서 프레임을 읽습니다.
+5. `GatewayRouter_OnRx()`가 라우팅 테이블을 조회하고 매칭된 프레임을 CAN2로 포워딩합니다.
+6. Golf 6 Cluster는 CAN2의 `0x280`, `0x5A0`, `0x288` 등을 수신해 표시합니다.
+7. Board B logger는 monitor 값으로 rpm, speed, coolant, ignition, warning 상태를 출력합니다.
+
+## 데이터 흐름 예시 - 방향지시등과 밝기
+
+1. Board A가 `0x100 byte[5] bit0 = 1`을 송신합니다.
+2. Board D가 CAN RX queue에서 IGN ON을 인식합니다.
+3. IGN OFF -> ON edge에서 Board D가 `0x635 byte[0]`을 `0x00`에서 `0x64`까지 fade 송신합니다.
+4. 사용자가 좌/우/비상 버튼을 누르면 Board D가 `0x531 byte[2]`의 해당 bit를 500 ms phase로 blink합니다.
+5. Board B가 `0x531`, `0x635`를 CAN2로 포워딩합니다.
+
+## 데이터 흐름 예시 - ADAS 위험에서 UDS 조회까지
+
+1. Board A가 CAN1 `0x100` IGN과 `0x5A0` speed reference를 송신합니다.
+2. Board E가 HC-SR04 거리와 CAN-derived speed를 기준으로 risk를 계산합니다.
+3. Board E가 CAN1 `0x3A0 ADAS_Status`를 100 ms 주기로 송신합니다.
+4. Board B Safety Bridge가 `0x3A0`을 진단 상태로 저장하고 DTC bitmap을 누적합니다.
+5. `risk_level >= 2`이면 Board B가 CAN2 `0x5D6` Parking Assist sweep을 송신합니다.
+6. Board C에서 `read adas`, `read fault`, `clear dtc`를 실행하면 Board B Gateway UDS server가 `0x77E`로 응답합니다.
+
+## 주의할 점
+
+- Board B는 현재 ADAS 상태를 `0x480` 또는 `0x050`으로 송신하지 않습니다.
+- Board D는 현재 `0x390 mGate_Komf_1` body-status를 송신하지 않습니다.
+- Board C의 CAN1은 통합 시스템에서는 물리적으로 Gateway CAN2 버스에 연결되는 진단 포트 역할입니다.
+- Board B Gateway UDS server와 계기판 UDS가 같은 `0x714/0x77E` ID를 쓸 수 있으므로, 순수 계기판 진단 시에는 연결 구성을 확인해야 합니다.

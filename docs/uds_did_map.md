@@ -1,66 +1,99 @@
 # UDS DID Map
 
-SID 0x22 (ReadDataByIdentifier) 지원 DID 목록.
+현재 Board C는 UDS client이고, 기본 CAN ID는 request `0x714`, response `0x77E`입니다. 같은 CAN2 버스에서 계기판과 Board B Gateway ADAS server가 모두 응답할 수 있으므로, 어떤 타깃이 켜져 있는지 확인해야 합니다.
 
-## 지원 DID
+## Gateway ADAS DID
 
-| DID (hex) | 이름 | 길이 (bytes) | 설명 | 단위 |
-|---|---|---|---|---|
-| 0xF190 | VIN | 17 | Vehicle Identification Number | ASCII |
-| 0xF40C | Engine RPM | 2 | 현재 엔진 회전수 | rpm, Big-Endian |
-| 0xF40D | Vehicle Speed | 2 | 현재 차량 속도 | km/h, Big-Endian |
-| 0xF40E | Coolant Temp | 1 | 냉각수 온도 | °C, signed |
-| 0xF410 | ADAS Status | 4 | flags, risk level, front distance, rear distance | raw/cm |
-| 0xF411 | Front Distance | 2 | 전방 거리 | cm, Big-Endian |
-| 0xF412 | Rear Distance | 2 | 후방 거리 | cm, Big-Endian |
-| 0xF413 | ADAS Fault Bitmap | 2 | active fault bitmap, latched DTC bitmap | bitfield |
+Board B `gateway_uds_server.c`가 실제로 응답하는 DID입니다. 모두 ISO-TP Single Frame으로 처리됩니다.
 
-> ⚠️ DID 0xF190 (VIN)은 17바이트라 ISO-TP 멀티프레임이 필요함.
-> 2주 스코프에서는 앞 4바이트만 Single Frame으로 반환 (또는 NRC 0x31).
-> 면접에서 "풀 VIN 전송은 ISO-TP 확장 스프린트에서 구현 예정" 으로 어필.
+| DID (hex) | 이름 | 응답 값 길이 | 설명 |
+|---:|---|---:|---|
+| `0xF410` | ADAS Status | 4 bytes | flags, risk level, front distance cm, rear distance cm |
+| `0xF411` | Front Distance | 1 byte | front distance cm |
+| `0xF412` | Rear Distance | 1 byte | rear distance cm |
+| `0xF413` | ADAS Fault Bitmap | 2 bytes | active fault bitmap, latched DTC bitmap |
 
-## 요청/응답 프레임 예시
+Clear DTC:
 
-### Positive Response (RPM = 3500)
-```
-Request:  714  03 22 F4 0C 00 00 00 00
-                │  │  └──┬──┘
-                │  │     DID (0xF40C)
-                │  └─ SID (0x22)
-                └──── PCI length (3)
+| Service | 요청 | 긍정 응답 | 설명 |
+|---|---|---|---|
+| `0x14` | `14 FF FF FF` | `54` | Gateway가 보관한 ADAS latched DTC bitmap clear |
 
-Response: 77E  05 62 F4 0C 0D AC 00 00
-                │  │  └──┬──┘  └──┬──┘
-                │  │     DID      Value (0x0DAC = 3500 rpm)
-                │  └─ SID + 0x40 (0x62)
-                └──── PCI length (5)
+## Gateway 요청/응답 예시
+
+### ADAS Status
+
+```text
+Request:  714  03 22 F4 10 00 00 00 00
+
+Response: 77E  07 62 F4 10 20 02 28 50
+                         │  │  │  └ rear=80 cm
+                         │  │  └ front=40 cm
+                         │  └ risk=2
+                         └ flags=0x20
 ```
 
-### Negative Response (존재하지 않는 DID)
-```
-Request:  714  03 22 99 99 00 00 00 00
+### Fault Bitmap
 
-Response: 77E  03 7F 22 31 00 00 00 00
-                │  │  │  └─ NRC 0x31 (Request Out of Range)
-                │  │  └──── Original SID
-                │  └─────── Negative Response SID (0x7F)
-                └────────── PCI length (3)
+```text
+Request:  714  03 22 F4 13 00 00 00 00
+
+Response: 77E  05 62 F4 13 03 03 00 00
+                         │  └ latched DTC bitmap
+                         └ active fault bitmap
 ```
+
+### Clear DTC
+
+```text
+Request:  714  04 14 FF FF FF 00 00 00
+Response: 77E  01 54 00 00 00 00 00 00
+```
+
+## 계기판 DID 명령
+
+Board C CLI에는 계기판 UDS 요청을 위한 명령도 남아 있습니다.
+
+| CLI | DID | 설명 |
+|---|---:|---|
+| `read vin` | `0xF190` | VIN |
+| `read part` | `0xF187` | manufacturer spare part number |
+| `read sw` | `0xF188` | ECU software number |
+| `read swver` | `0xF189` | ECU software version |
+| `read serial` | `0xF18C` | ECU serial number |
+| `read hw` | `0xF191` | ECU hardware number |
+| `read system` | `0xF197` | system name |
+
+계기판이 멀티프레임으로 응답하면 Board C는 First Frame을 감지하고 Flow Control CTS를 자동 송신합니다.
+
+## 수동 CAN Listen 명령
+
+아래 명령은 UDS DID 요청이 아니라 현재 코드에서 특정 CAN ID를 직접 기다리는 debug/listen 모드입니다.
+
+| CLI | 현재 동작 |
+|---|---|
+| `read rpm` | CAN ID `0x280` 수신 대기 |
+| `read speed` | CAN ID `0x1A0` 수신 대기 |
+| `read temp` | CAN ID `0xF40E` 수신 대기 |
+| `read all` | 아무 키 입력 전까지 모든 CAN frame 출력 |
+
+현재 Board A 기준으로 실제 속도 기준은 `0x5A0`이고 `0x1A0`은 zero keepalive입니다. 따라서 `read speed`는 계기판 UDS가 아니라 raw CAN 확인용으로 보는 편이 맞습니다.
 
 ## NRC 테이블
 
 | NRC | 의미 | 발생 조건 |
-|---|---|---|
-| 0x11 | Service Not Supported | 지원 안 하는 SID (0x10, 0x27 등) |
-| 0x13 | Incorrect Message Length | PCI length 불일치 |
-| 0x31 | Request Out of Range | DID 테이블에 없음 |
+|---:|---|---|
+| `0x11` | Service Not Supported | 지원하지 않는 SID |
+| `0x13` | Incorrect Message Length | PCI length 또는 payload length 불일치 |
+| `0x31` | Request Out of Range | Gateway ADAS server가 지원하지 않는 DID |
 
-## Board C CLI 확장
+## Board C CLI 요약
 
-| 명령 | UDS 요청 | 설명 |
-|---|---|---|
-| `read adas` | `22 F4 10` | ADAS flags/risk/front/rear 조회 |
-| `read front` | `22 F4 11` | 전방 거리 조회 |
-| `read rear` | `22 F4 12` | 후방 거리 조회 |
-| `read fault` | `22 F4 13` | active fault와 latched DTC bitmap 조회 |
-| `clear dtc` | `14 FF FF FF` | Gateway가 보관한 ADAS latched DTC clear |
+| 명령 | 설명 |
+|---|---|
+| `cluster_info` | 현재 request/response ID와 지원 명령 출력 |
+| `cl_target <req> <resp>` | UDS request/response CAN ID 변경 |
+| `cl_read <did>` | 임의 DID 요청 |
+| `read adas` | Gateway ADAS status 조회 |
+| `read fault` | Gateway ADAS fault/DTC 조회 |
+| `clear dtc` | Gateway ADAS latched DTC clear |

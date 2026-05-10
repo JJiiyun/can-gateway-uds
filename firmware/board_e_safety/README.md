@@ -1,46 +1,44 @@
 # Board E - Safety / ADAS ECU
 
-Board E is the Safety / ADAS ECU. It measures front/rear distance, uses vehicle speed from CAN, evaluates risk, and sends `0x3A0 ADAS_Status` to Board B.
+Board E는 Safety / ADAS ECU입니다. 전방/후방 HC-SR04 거리 센서를 읽고, CAN에서 받은 IGN/차속 기준으로 위험도를 판단한 뒤 CAN1 `0x3A0 ADAS_Status`를 Board B에 송신합니다.
 
-Board E does not read Board A directly. It reads all reference data from the CAN1 RX queue.
+## 현재 계약
 
-## Current Contract
-
-| Item | Value |
+| 항목 | 값 |
 |---|---|
 | CAN bus | CAN1 |
-| Reference input | Board A `0x100` IGN Status |
-| Speed input | Board A `0x1A0` and `0x5A0` speed frames |
+| 기준 입력 | Board A `0x100` IGN Status |
+| Speed input | Board A `0x5A0` speed reference. 오래된 non-zero `0x1A0` speed frame도 호환 수신 |
 | TX frame | `0x3A0 ADAS_Status` |
 | TX period | 100 ms |
 | Input poll period | 60 ms |
-| Validity timeout | 500 ms for IGN and speed references |
+| Validity timeout | IGN과 speed reference 모두 500 ms |
+
+Board E는 Board A 내부 변수를 직접 읽지 않고, 모든 기준 데이터를 CAN1 RX queue에서 받습니다.
 
 ## CAN RX
-
-Board E reads CAN frames through `CAN_BSP_Read()`.
 
 | CAN ID | DLC | Sender | Field | Use |
 |---:|---:|---|---|---|
 | `0x100` | 8 | Board A | `byte[5] bit0` | IGN ON gate |
-| `0x1A0` | 8 | Board A | `byte[2..3]` little-endian raw, `km/h * 80` | Vehicle speed reference |
-| `0x5A0` | 8 | Board A | `byte[2]` | Vehicle speed reference |
+| `0x5A0` | 8 | Board A | `byte[2]`, `km/h / 2` | 현재 speed reference |
+| `0x1A0` | 8 | Board A 또는 legacy sender | `byte[2..3]`, `km/h * 80` | non-zero legacy speed frame만 반영 |
 
-Important behavior:
+중요 동작:
 
-- `0x100` is treated as IGN Status only.
-- Board E does not read speed from `0x100`.
-- Vehicle speed is valid only while a recent `0x100` IGN ON frame exists.
-- If IGN is OFF or no valid IGN frame is received for 500 ms, Board E reports speed as 0 for risk evaluation.
-- If speed frames stop for 500 ms, Board E also reports speed as 0.
+- `0x100`은 IGN Status 전용으로 처리합니다.
+- Board E는 `0x100`에서 속도를 읽지 않습니다.
+- 현재 Board A의 `0x1A0`은 zero-filled keepalive이므로, Board E는 이 값으로 최신 `0x5A0` 속도를 0으로 덮지 않습니다.
+- 유효한 IGN ON 프레임이 500 ms 안에 없으면 위험도 계산용 speed는 0입니다.
+- speed frame이 500 ms 이상 끊겨도 speed는 0입니다.
 
 ## CAN TX
 
 ### `0x3A0` ADAS_Status
 
-Board B's `GatewaySafetyBridge` expects this exact payload on CAN1.
+Board B의 `GatewaySafetyBridge`는 이 payload를 CAN1에서 기대합니다.
 
-| Item | Value |
+| 항목 | 값 |
 |---|---|
 | CAN ID | `0x3A0` |
 | DLC | 8 |
@@ -105,41 +103,34 @@ Input bitmap:
 | `rear <= 25 cm` | rear obstacle, risk 1 |
 | HC-SR04 timeout | sensor fault, fault bitmap, risk 2 |
 
-Board B converts `risk_level >= 2`, sensor fault, or active fault bitmap into a CAN2 `0x480 mMotor_5` warning frame. For audible cluster feedback, Board B also pulses CAN2 `0x050 mAirbag_1` with `byte[2] = 0x04` while `risk_level >= 2`.
-
-Audible warning cadence:
-
-| Risk level | CAN2 `0x050` pulse |
-|---:|---|
-| 0 | off |
-| 1 | off |
-| 2 | `byte[2] = 0x04` for 100 ms every 600 ms |
-| 3 | `byte[2] = 0x04` for 100 ms every 300 ms |
+Board B는 현재 `risk_level >= 2`일 때 CAN2 `0x5D6` Parking Assist 프레임을 sweep 송신합니다. 문서나 과거 코드 조각에 보이는 `0x480 mMotor_5` 또는 `0x050 mAirbag_1` 변환 송신은 현재 Safety Bridge 구현에 없습니다.
 
 ## Physical Inputs
 
 ### HC-SR04 Sensors
 
+현재 코드의 기본 핀입니다.
+
 | Sensor | TRIG | ECHO | Use |
 |---|---|---|---|
-| Front | `PE2` | `PE3` | Front obstacle distance |
-| Rear | `PE4` | `PE5` | Rear obstacle distance |
+| Front | `PF15` | `PF14` | Front obstacle distance |
+| Rear | `PE11` | `PE9` | Rear obstacle distance |
 
-Distance is calculated from echo pulse width:
+거리 계산:
 
-| Item | Value |
+| 항목 | 값 |
 |---|---|
-| Conversion | approximate `distance_cm = echo_us / 58` |
+| Conversion | approximate `distance_cm = (echo_us + 29) / 58` |
 | Clamp range | 5 cm to 250 cm |
 | Timeout | Sensor fault |
 
-Electrical note: HC-SR04 ECHO is commonly 5 V. Use a voltage divider or level shifter so STM32 GPIO sees 3.3 V or less.
+전기적 주의: HC-SR04 ECHO는 보통 5 V입니다. STM32 GPIO에는 3.3 V 이하가 들어가도록 전압 분배기 또는 level shifter를 사용해야 합니다.
 
 ## UART CLI
 
-Default UART is USART3 / ST-LINK VCP, 115200 8N1.
+기본 UART는 USART3 / ST-LINK VCP, 115200 8N1입니다.
 
-Boot-time debug logs are off by default. Use `adas status` for one-shot inspection, `adas monitor on 100` for periodic verification output, and `adas log on` only when the 1-second automatic CAN summary is needed.
+부팅 시 debug log는 기본 off입니다. `adas status`로 단발 확인, `adas monitor on 100`으로 주기 확인, `adas log on`으로 1초 CAN summary를 켭니다.
 
 ```text
 adas status
@@ -157,16 +148,17 @@ adas event off
 adas event stat
 ```
 
-Board E does not have a UART input override mode like Board D. Its ADAS inputs always come from the HC-SR04 sensors plus CAN-derived IGN/speed.
+Board E에는 Board D 같은 UART 입력 override 모드가 없습니다. ADAS 입력은 항상 HC-SR04 센서와 CAN-derived IGN/speed에서 옵니다.
 
 ## Verification
 
-1. Confirm Board A sends CAN1 `0x100` with `byte[5] bit0 = 1`.
-2. Confirm Board A sends CAN1 `0x1A0` and/or `0x5A0` speed frames.
-3. Confirm Board E sends CAN1 `0x3A0` every 100 ms.
-4. Confirm `0x3A0 byte[5]` follows the CAN speed reference only while IGN is ON.
-5. Create front/rear distance warning conditions and verify `flags`, `risk_level`, and `fault_bitmap` change.
-6. Confirm Board B receives `0x3A0` and emits CAN2 `0x480` when risk/fault is active.
+1. Board A가 CAN1 `0x100 byte[5] bit0 = 1`을 송신하는지 확인합니다.
+2. Board A가 CAN1 `0x5A0` speed reference를 송신하는지 확인합니다.
+3. Board E가 CAN1 `0x3A0`을 100 ms마다 송신하는지 확인합니다.
+4. `0x3A0 byte[5]`가 IGN ON이고 speed reference가 최근일 때만 CAN speed를 따라가는지 확인합니다.
+5. 전방/후방 거리 경고 조건을 만들고 `flags`, `risk_level`, `fault_bitmap`이 변하는지 확인합니다.
+6. Board B가 `0x3A0`을 수신하고, `risk_level >= 2`에서 CAN2 `0x5D6`을 송신하는지 확인합니다.
+7. Board C에서 `read adas`, `read fault`, `clear dtc`로 Gateway ADAS 상태를 조회/초기화합니다.
 
 ## Build
 
